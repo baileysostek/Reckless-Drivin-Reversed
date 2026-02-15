@@ -12,9 +12,22 @@ Pre-built binaries for Windows and macOS are available on the [Releases page](ht
 
 These builds are not code-signed, so your operating system may show a warning when you first run the game. This is normal for open-source software distributed outside of app stores.
 
-**Windows:** You may see a "Windows protected your PC" SmartScreen dialog. Click **More info**, then click **Run anyway**.
+### **Windows:**
+You may see a "Windows protected your PC" SmartScreen dialog. Click **More info**, then click **Run anyway**.
 
-**macOS:** You may see a message that the app "can't be opened because Apple cannot check it for malicious software." To open it, right-click (or Control-click) on `RecklessDrivin.app` and select **Open**, then click **Open** in the confirmation dialog. You only need to do this once.
+### **macOS:**
+You may see a message that the app "can't be opened because Apple cannot check it for malicious software." 
+
+**To open the app:**
+
+1. Click the **question mark (?)** button in the top-right corner of the security warning popup to view Apple's help page, or go directly to **System Settings**
+2. Choose **Apple menu () > System Settings**, then click **Privacy & Security** in the sidebar (you may need to scroll down)
+3. Scroll down to the **Security** section
+4. Click the **Open Anyway** button next to the message about `RecklessDrivin.app`
+   - *Note: This button is only available for about an hour after you first try to open the app*
+5. Enter your login password, then click **OK**
+
+The app will be saved as an exception to your security settings, and you can open it in the future by double-clicking it normally. You only need to do this once.
 
 ## Support This Project
 
