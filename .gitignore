@@ -1,0 +1,48 @@
+# Build output
+build-mac/
+build-win/
+build/
+
+# Final distribution builds
+dist/
+
+# SDL2 source (downloaded by build-mac.sh)
+SDL2/
+
+# IDE / editor files
+.vscode/
+.vs/
+*.suo
+*.user
+*.sln
+*.vcxproj*
+*.idea/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Compiled objects
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
+*.a
+*.so
+*.dylib
+*.pdb
+*.ilk
+*.exp
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Preferences file (generated at runtime)
+RecklessDrivin.prefs
