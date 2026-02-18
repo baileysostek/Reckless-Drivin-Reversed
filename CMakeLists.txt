@@ -135,10 +135,22 @@ if(WIN32)
     endif()
 endif()
 
+# Linux-only math library
+if(UNIX AND NOT APPLE)
+    target_link_libraries(RecklessDrivin PRIVATE m)
+endif()
+
 # Resource extractor tool (standalone, no SDL dependency)
 add_executable(res_extract tools/res_extract.c)
 target_include_directories(res_extract PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/platform
+)
+
+# BMP to PPic converter tool (standalone, no SDL dependency)
+add_executable(bmp2ppic tools/bmp2ppic.c libs/lzrw/lzrw3a.c)
+target_include_directories(bmp2ppic PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/platform
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/lzrw
 )
 
 # Custom target to extract resources
