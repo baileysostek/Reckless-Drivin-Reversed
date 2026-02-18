@@ -117,6 +117,9 @@ enum{
 	kNumLayers
 };
 
+// Define helpful typechecking macros
+#define is_box(obj) (((obj)->type->flags2) & kObjectAddOnFlag)
+
 #define kMaxTracks 4096
 #define kCalcFPS 60.0
 #define kFrameDuration (1/kCalcFPS)

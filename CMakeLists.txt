@@ -146,13 +146,6 @@ target_include_directories(res_extract PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/platform
 )
 
-# BMP to PPic converter tool (standalone, no SDL dependency)
-add_executable(bmp2ppic tools/bmp2ppic.c libs/lzrw/lzrw3a.c)
-target_include_directories(bmp2ppic PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/platform
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/lzrw
-)
-
 # Custom target to extract resources
 add_custom_target(extract_resources
     COMMAND res_extract "${CMAKE_CURRENT_SOURCE_DIR}/Data" "${CMAKE_CURRENT_SOURCE_DIR}/assets"

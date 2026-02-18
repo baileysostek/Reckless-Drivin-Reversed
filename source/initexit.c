@@ -136,7 +136,8 @@ void Init()
 	fprintf(stderr, "[Init] InitScreen...\n");
 	InitScreen();
 	fprintf(stderr, "[Init] ShowPicScreen...\n");
-	ShowPicScreen(1003);
+	ShowPicScreen(PPIC_LOADING);
+	SDL_Delay(1000); // Add small amount of delay to see the loading screen.
 	fprintf(stderr, "[Init] LoadPack(kPackSnds)...\n");
 	LoadPack(kPackSnds);
 	fprintf(stderr, "[Init] LoadPack(kPackObTy)...\n");

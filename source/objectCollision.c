@@ -1,5 +1,8 @@
 #include <math.h>
 #include <string.h>
+#include <stdbool.h>
+
+#include "resources.h"
 #include "objects.h"
 #include "screen.h"
 #include "vec2d.h"
@@ -27,6 +30,11 @@ enum{
 	kFrontSide,kFrontLeftSide,kFrontRightSide,kLeftSide,
 	kRightSide,kRearLeftSide,kRearRightSide,kRearSide
 };
+
+void OnPlayerCollideBox(void);
+void ShowTextEffect(const char* text, int len, int style);
+
+extern short gXSize;
 
 int CalcObjPoints(tObject *theObj,t2DPoint *points)
 {
@@ -115,48 +123,48 @@ void MakeDebris(tObject *theObj,int damagePos,float damage,float maxDamage)
 		tObject *debrisObj;
 		switch(damagePos){
 			case kFrontBumper:
-				debrisObj=NewObject(theObj,1014);
+				debrisObj=NewObject(theObj,OBJECT_BUMPER);
 				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(sin(theObj->dir)*ySize,cos(theObj->dir)*ySize));
 				debrisObj->dir=theObj->dir;
 				break;	
 			case kBackBumper:
-				debrisObj=NewObject(theObj,1014);
+				debrisObj=NewObject(theObj,OBJECT_BUMPER);
 				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(-sin(theObj->dir)*ySize,-cos(theObj->dir)*ySize));
 				debrisObj->dir=theObj->dir+PI;
 				break;	
 			case kFrontLeftTire:
-				debrisObj=NewObject(theObj,1012);
+				debrisObj=NewObject(theObj,OBJECT_TIRE);
 				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(sin(theObj->dir)*ySize,cos(theObj->dir)*ySize));
 				debrisObj->pos=VEC2D_Sum(debrisObj->pos,P2D(-cos(theObj->dir)*xSize,-sin(theObj->dir)*xSize));
 				debrisObj->dir=RanFl(0,2*PI);
 				break;	
 			case kFrontRightTire:
-				debrisObj=NewObject(theObj,1012);
+				debrisObj=NewObject(theObj,OBJECT_TIRE);
 				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(sin(theObj->dir)*ySize,cos(theObj->dir)*ySize));
 				debrisObj->pos=VEC2D_Sum(debrisObj->pos,P2D(cos(theObj->dir)*xSize,sin(theObj->dir)*xSize));
 				debrisObj->dir=RanFl(0,2*PI);
 				break;	
 			case kBackLeftTire:
-				debrisObj=NewObject(theObj,1012);
-				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(-sin(theObj->dir)*(*objType).length*kScale,-cos(theObj->dir)*(*objType).length*kScale));;
-				debrisObj->pos=VEC2D_Sum(debrisObj->pos,P2D(-cos(theObj->dir)*(*objType).width*kScale,-sin(theObj->dir)*(*objType).width*kScale));;
+				debrisObj=NewObject(theObj,OBJECT_TIRE);
+				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(-sin(theObj->dir)*(*objType).length*kScale,-cos(theObj->dir)*(*objType).length*kScale));
+				debrisObj->pos=VEC2D_Sum(debrisObj->pos,P2D(-cos(theObj->dir)*(*objType).width*kScale,-sin(theObj->dir)*(*objType).width*kScale));
 				debrisObj->dir=RanFl(0,2*PI);
 				break;	
 			case kBackRightTire:
-				debrisObj=NewObject(theObj,1012);
-				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(-sin(theObj->dir)*(*objType).length*kScale,-cos(theObj->dir)*(*objType).length*kScale));;
-				debrisObj->pos=VEC2D_Sum(debrisObj->pos,P2D(cos(theObj->dir)*(*objType).width*kScale,sin(theObj->dir)*(*objType).width*kScale));;
+				debrisObj=NewObject(theObj,OBJECT_TIRE);
+				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(-sin(theObj->dir)*(*objType).length*kScale,-cos(theObj->dir)*(*objType).length*kScale));
+				debrisObj->pos=VEC2D_Sum(debrisObj->pos,P2D(cos(theObj->dir)*(*objType).width*kScale,sin(theObj->dir)*(*objType).width*kScale));
 				debrisObj->dir=RanFl(0,2*PI);
 				break;	
 			case kLeftDoor:
-				debrisObj=NewObject(theObj,1015);
-				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(-cos(theObj->dir)*(*objType).width*kScale,-sin(theObj->dir)*(*objType).width*kScale));;
+				debrisObj=NewObject(theObj,OBJECT_DOOR_LEFT);
+				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(-cos(theObj->dir)*(*objType).width*kScale,-sin(theObj->dir)*(*objType).width*kScale));
 				debrisObj->dir=theObj->dir;
 				debrisObj->rotVelo=-2*PI;
 				break;	
 			case kRightDoor:
-				debrisObj=NewObject(theObj,1016);
-				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(cos(theObj->dir)*(*objType).width*kScale,sin(theObj->dir)*(*objType).width*kScale));;
+				debrisObj=NewObject(theObj,OBJECT_DOOR_RIGHT);
+				debrisObj->pos=VEC2D_Sum(theObj->pos,P2D(cos(theObj->dir)*(*objType).width*kScale,sin(theObj->dir)*(*objType).width*kScale));
 				debrisObj->dir=theObj->dir;
 				debrisObj->rotVelo=2*PI;
 				break;					
@@ -347,98 +355,95 @@ void BounceObjects(tObject *obj1,tObject *obj2)
 	DoBounce(obj1,obj2,diff);
 }
 
-void BonusObject(tObject *theObj)
-{
-	tObjectTypePtr objType=theObj->type;
-	if((*objType).flags2&kObjectAddOnFlag)
-	{
-		int ok=false;
-		do{
-			switch(RanInt(0,8))
-			{
-				case 0:
-					if(!(gPlayerAddOns&kAddOnLock))
-					{
-						tTextEffect fx={320,240,kEffectSinLines+kEffectMoveLeft,0,{0}};
-						fx.text[0]=14; memcpy(fx.text+1, "ADDONShLOCKEDf", 14);
-						NewTextEffect(&fx);
-						gPlayerAddOns|=kAddOnLock;
-						ok=true;
-					}
-					break;	
-				case 1:
-					{
-						tTextEffect fx={320,240,kEffectSinLines+kEffectMoveDown,0,{0}};
-						fx.text[0]=7; memcpy(fx.text+1, "MINESee", 7);
-						NewTextEffect(&fx);
-						gNumMines+=5;
-						ok=true;
-					}
-					break;	
-				case 2:
-					{
-						tTextEffect fx={320,240,kEffectExplode,0,{0}};
-						fx.text[0]=9; memcpy(fx.text+1, "MISSILESe", 9);
-						NewTextEffect(&fx);
-						gNumMissiles+=5;
-						ok=true;
-					}
-					break;	
-				case 3:
-					if(!(gPlayerAddOns&kAddOnSpikes))
-					{
-						tTextEffect fx={320,240,kEffectExplode,0,{0}};
-						fx.text[0]=7; memcpy(fx.text+1, "SPIKESe", 7);
-						NewTextEffect(&fx);
-						gPlayerAddOns|=kAddOnSpikes;
-						ok=true;
-					}
-					break;
-				case 4:
-					if(!(gPlayerAddOns&kAddOnCop))
-					{
-						tTextEffect fx={320,240,kEffectSinLines,0,{0}};
-						fx.text[0]=13; memcpy(fx.text+1, "POLICEhJAMMER", 13);
-						NewTextEffect(&fx);
-						gPlayerAddOns|=kAddOnCop;
-						ok=true;
-					}
-					break;	
-				case 5:
-					if(!(gPlayerAddOns&kAddOnTurbo))
-					{
-						tTextEffect fx={320,240,kEffectExplode,0,{0}};
-						fx.text[0]=15; memcpy(fx.text+1, "TURBOhENGINEeee", 15);
-						NewTextEffect(&fx);
-						gPlayerAddOns|=kAddOnTurbo;
-						ok=true;
-					}
-					break;	
-				case 6:
-					{
-						tTextEffect fx={320,240,kEffectExplode,0,{0}};
-						fx.text[0]=13; memcpy(fx.text+1, "][[[hAWARDEDf", 13);
-						NewTextEffect(&fx);
-						gPlayerScore+=2000;
-						ok=true;
-					}
-					break;
-				case 7:
-					{
-						tTextEffect fx={320,240,kEffectSinLines+kEffectMoveUp,0,{0}};
-						fx.text[0]=12; memcpy(fx.text+1, "EXTRAhLIFEee", 12);
-						NewTextEffect(&fx);
-						gPlayerLives++;
-						SimplePlaySound(154);
-						ok=true;
-					}
-					break;
-			}
-		}while(!ok);
+// When the player hits a "box" addon objet, determine which powerup to give them
+void BonusObject(tObject *theObj) {
+	if(is_box(theObj)) {
+		OnPlayerCollideBox();
+	} else {
+		// Bonus multiplier
+		gPlayerBonus=theObj->frame-(*(theObj->type)).frame+2;
 	}
-	else
-		gPlayerBonus=theObj->frame-(*objType).frame+2;
 	KillObject(theObj);
+}
+
+void OnPlayerCollideBox() {
+    // Array of possible power-up IDs to pick from
+    int options[] = {0, 1, 2, 3, 4, 5, 6, 7};
+    
+    // Shuffle the options to ensure randomness without infinite looping
+    for (int i = 0; i < 8; i++) {
+        int r = RanInt(i, 7);
+        int temp = options[i];
+        options[i] = options[r];
+        options[r] = temp;
+    }
+
+    // Attempt to grant a power-up in shuffled order
+    for (int i = 0; i < 8; i++) {
+        switch (options[i]) {
+            case 0: // ADDONS LOCKED
+                if (!(gPlayerAddOns & kAddOnLock)) {
+                    ShowTextEffect("ADDONShLOCKEDf", 14, kEffectSinLines + kEffectMoveLeft);
+                    gPlayerAddOns |= kAddOnLock;
+                    return;
+                }
+                break;
+
+            case 1: // MINES
+                ShowTextEffect("MINESee", 7, kEffectSinLines + kEffectMoveDown);
+                gNumMines += 5;
+                return;
+
+            case 2: // MISSILES
+                ShowTextEffect("MISSILESe", 9, kEffectExplode);
+                gNumMissiles += 5;
+                return;
+
+            case 3: // SPIKES
+                if (!(gPlayerAddOns & kAddOnSpikes)) {
+                    ShowTextEffect("SPIKESe", 7, kEffectExplode);
+                    gPlayerAddOns |= kAddOnSpikes;
+                    return;
+                }
+                break;
+
+            case 4: // POLICE JAMMER
+                if (!(gPlayerAddOns & kAddOnCop)) {
+                    ShowTextEffect("POLICEhJAMMER", 13, kEffectSinLines);
+                    gPlayerAddOns |= kAddOnCop;
+                    return;
+                }
+                break;
+
+            case 5: // TURBO ENGINE
+                if (!(gPlayerAddOns & kAddOnTurbo)) {
+                    ShowTextEffect("TURBOhENGINEeee", 15, kEffectExplode);
+                    gPlayerAddOns |= kAddOnTurbo;
+                    return;
+                }
+                break;
+
+            case 6: // SCORE AWARDED
+                ShowTextEffect("][[[hAWARDEDf", 13, kEffectExplode);
+                gPlayerScore += 2000;
+                return;
+
+            case 7: // EXTRA LIFE
+                ShowTextEffect("EXTRAhLIFEee", 12, kEffectSinLines + kEffectMoveUp);
+                gPlayerLives++;
+                SimplePlaySound(154);
+                return;
+        }
+    }
+}
+
+// Helper to reduce code duplication for the text effects
+void ShowTextEffect(const char* text, int len, int style) {
+		int xOff = (gXSize - 640) / 2;
+    tTextEffect fx = {xOff + 320, 240, style, 0, {0}};
+    fx.text[0] = (char)len;
+    memcpy(fx.text + 1, text, len);
+    NewTextEffect(&fx);
 }
 
 void HandleCollision(tObject *posObj)

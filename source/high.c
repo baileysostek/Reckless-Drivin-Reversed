@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <SDL.h>
+
+#include "resources.h"
 #include "mac_compat.h"
 #include "preferences.h"
 #include "interface.h"
@@ -16,6 +18,9 @@ extern void Blit2Screen(void);
 extern void FadeScreen(int);
 extern void ScreenUpdate(WindowPtr win);
 extern short gLevelResFile;
+extern void ShowPicScreenNoFade(PPicID id);
+extern void ResizeFramebuffer(int newWidth);
+extern int ComputeWidescreenWidth(int winW, int winH);
 
 /* ------------------------------------------------------------------ */
 /* Built-in 5x7 bitmap font for score screen rendering.               */
@@ -222,41 +227,70 @@ static void DrawNumber5x7(int px, int py, unsigned long num, int scale, UInt16 c
 #define kScoreNameX     140
 #define kScoreNumX      500
 
-void ShowHighScores(int hilite)
+static void DrawHighScoreEntries(int hilite)
 {
     int i;
+    int xOff = (gXSize - 640) / 2;
 
-    ShowPicScreenNoFade(1004);
+    ShowPicScreenNoFade(PPIC_HIGH_SCORES);
 
-    /* Dont need to draw title, it is baked into Pic 1004 */
-
-    /* Draw each score entry */
     for (i = 0; i < kNumHighScoreEntrys; i++) {
         int y = kScoreStartY + i * kScoreLineH;
         UInt16 color = (i == hilite) ? kColorYellowBE : kColorWhiteBE;
         char rankBuf[4];
 
-        /* Rank number */
         sprintf(rankBuf, "%d.", i + 1);
-        DrawString5x7(100, y, rankBuf, kScoreScale, color);
+        DrawString5x7(100 + xOff, y, rankBuf, kScoreScale, color);
 
-        /* Name (Pascal string) */
         if (gPrefs.high[i].name[0] > 0) {
-            DrawPascalString5x7(kScoreNameX, y, gPrefs.high[i].name, kScoreScale, color);
+            DrawPascalString5x7(kScoreNameX + xOff, y, gPrefs.high[i].name, kScoreScale, color);
         } else {
-            DrawString5x7(kScoreNameX, y, "---", kScoreScale, color);
+            DrawString5x7(kScoreNameX + xOff, y, "---", kScoreScale, color);
         }
 
-        /* Score */
         if (gPrefs.high[i].score > 0) {
-            DrawNumber5x7(kScoreNumX, y, gPrefs.high[i].score, kScoreScale, color);
+            DrawNumber5x7(kScoreNumX + xOff, y, gPrefs.high[i].score, kScoreScale, color);
         }
     }
 
     FadeScreen(0);
     Blit2Screen();
+}
 
-    WaitForPress();
+void ShowHighScores(int hilite)
+{
+    int pressed = 0;
+    SDL_Event event;
+
+    DrawHighScoreEntries(hilite);
+
+    /* Wait for press, redrawing on resize */
+    while (!pressed) {
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+                case SDL_KEYDOWN:
+                case SDL_MOUSEBUTTONDOWN:
+                case SDL_JOYBUTTONDOWN:
+                case SDL_CONTROLLERBUTTONDOWN:
+                    pressed = 1;
+                    break;
+                case SDL_WINDOWEVENT:
+                    if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                        ResizeFramebuffer(ComputeWidescreenWidth(
+                            event.window.data1, event.window.data2));
+                        DrawHighScoreEntries(hilite);
+                    } else if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
+                        Blit2Screen();
+                    }
+                    break;
+                case SDL_QUIT:
+                	SDL_Quit();
+	                exit(0);
+            }
+        }
+        SDL_Delay(10);
+    }
+
     /* Restore menu screen directly — no fade-to-black transition */
     FadeScreen(0);
     ScreenUpdate(nil);
@@ -335,36 +369,46 @@ static int GetPlayerName(unsigned char *outName, UInt32 score)
                             break;
                     }
                     break;
+
+                case SDL_WINDOWEVENT:
+                    if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                        ResizeFramebuffer(ComputeWidescreenWidth(
+                            event.window.data1, event.window.data2));
+                    }
+                    break;
             }
         }
 
         /* Redraw the input screen */
-        memset(gBaseAddr, 0, gXSize * gYSize * 2);
-
-        DrawString5x7(160, 140, "NEW HIGH SCORE!", 3, kColorYellowBE);
-
         {
-            char scoreLine[32];
-            sprintf(scoreLine, "Score: %lu", (unsigned long)score);
-            DrawString5x7(200, 190, scoreLine, 2, kColorWhiteBE);
+            int xOff = (gXSize - 640) / 2;
+            memset(gBaseAddr, 0, gXSize * gYSize * 2);
+
+            DrawString5x7(160 + xOff, 140, "NEW HIGH SCORE!", 3, kColorYellowBE);
+
+            {
+                char scoreLine[32];
+                sprintf(scoreLine, "Score: %lu", (unsigned long)score);
+                DrawString5x7(200 + xOff, 190, scoreLine, 2, kColorWhiteBE);
+            }
+
+            DrawString5x7(130 + xOff, 240, "Enter your name:", 2, kColorCyanBE);
+
+            /* Draw name with cursor */
+            {
+                char displayBuf[20];
+                memcpy(displayBuf, nameBuf, nameLen);
+                if (cursorVisible)
+                    displayBuf[nameLen] = '_';
+                else
+                    displayBuf[nameLen] = ' ';
+                displayBuf[nameLen + 1] = '\0';
+                DrawString5x7(180 + xOff, 280, displayBuf, 3, kColorWhiteBE);
+            }
+
+            DrawString5x7(140 + xOff, 360, "Press ENTER to confirm", 2, kColorGrayBE);
+            DrawString5x7(160 + xOff, 390, "Press ESC to cancel", 2, kColorGrayBE);
         }
-
-        DrawString5x7(130, 240, "Enter your name:", 2, kColorCyanBE);
-
-        /* Draw name with cursor */
-        {
-            char displayBuf[20];
-            memcpy(displayBuf, nameBuf, nameLen);
-            if (cursorVisible)
-                displayBuf[nameLen] = '_';
-            else
-                displayBuf[nameLen] = ' ';
-            displayBuf[nameLen + 1] = '\0';
-            DrawString5x7(180, 280, displayBuf, 3, kColorWhiteBE);
-        }
-
-        DrawString5x7(140, 360, "Press ENTER to confirm", 2, kColorGrayBE);
-        DrawString5x7(160, 390, "Press ESC to cancel", 2, kColorGrayBE);
 
         Blit2Screen();
         SDL_Delay(16);

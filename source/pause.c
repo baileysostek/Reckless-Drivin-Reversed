@@ -18,7 +18,7 @@ void PauseGame()
 	InputMode(kInputSuspended);
 	BeQuiet();
 	MacShowCursor();
-	ShowPicScreen(1006);
+	ShowPicScreen(PPIC_PAUSED);
 
 	while(paused)
 	{

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <SDL.h>
 #include "mac_compat.h"
 #include "error.h"
 #include "input.h"
@@ -10,6 +11,10 @@
 #include "packs.h"
 #include "screen.h"
 #include "sprites.h"
+
+/* From platform_screen.c - avoid including platform_screen.h (conflicts with screen.h) */
+extern void ResizeFramebuffer(int newWidth);
+extern int ComputeWidescreenWidth(int winW, int winH);
 
 tPrefs gPrefs;
 extern int gOSX;
@@ -120,6 +125,36 @@ void ReInitGraphics(void)
 
 void Preferences(void)
 {
-	/* Stub: no preferences dialog yet in SDL port.
-	 * The original used a Mac dialog. We'll implement an in-game UI later. */
+    int pressed = 0;
+    SDL_Event event;
+
+    /* Wait for press, redrawing on resize */
+    while (!pressed) {
+				Blit2Screen();
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+                case SDL_KEYDOWN:
+                case SDL_MOUSEBUTTONDOWN:
+                case SDL_JOYBUTTONDOWN:
+                case SDL_CONTROLLERBUTTONDOWN:
+                    pressed = 1;
+                    break;
+                case SDL_WINDOWEVENT:
+                    if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                        ResizeFramebuffer(ComputeWidescreenWidth(event.window.data1, event.window.data2));
+                    } else if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
+                        Blit2Screen();
+                    }
+                    break;
+                case SDL_QUIT:
+                    SDL_Quit();
+                    exit(0);
+            }
+        }
+        SDL_Delay(10);
+    }
+
+    /* Restore menu screen directly — no fade-to-black transition */
+    FadeScreen(0);
+    ScreenUpdate(nil);
 }

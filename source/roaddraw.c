@@ -256,7 +256,7 @@ void DrawRoadZoomed(float xDrawStart,float yDrawStart,float zoom)
 		drawPos=DrawBorderLineZoomed(drawPos,xDrawStart,roadData[3],0x7fffffff,worldY,backgrTex,leftBorder,rightBorder,zoom);		
 		drawPos+=rowBytesSkip;
 	}
-	if(drawPos!=gBaseAddr+640*(gPrefs.lineSkip?240:480)+(gPrefs.lineSkip?240:480)*rowBytesSkip)DoError(paramErr);
+	if(drawPos!=gBaseAddr+gXSize*(gPrefs.lineSkip?240:480)+(gPrefs.lineSkip?240:480)*rowBytesSkip)DoError(paramErr);
 }
 
 
@@ -368,8 +368,8 @@ void DrawRoadZoomed16(float xDrawStart,float yDrawStart,float zoom)
 		drawPos=DrawLineZoomed16(drawPos,xDrawStart,roadData[0],roadData[1],worldY,gXFrontDriftPos,gYFrontDriftPos,roadTex,zoom);
 		drawPos=DrawBorderLineZoomed16(drawPos,xDrawStart,roadData[1],roadData[2],worldY,backgrTex,leftBorder,rightBorder,zoom);
 		drawPos=DrawLineZoomed16(drawPos,xDrawStart,roadData[2],roadData[3],worldY,gXFrontDriftPos,gYFrontDriftPos,roadTex,zoom);
-		drawPos=DrawBorderLineZoomed16(drawPos,xDrawStart,roadData[3],0x7fffffff,worldY,backgrTex,leftBorder,rightBorder,zoom);		
+		drawPos=DrawBorderLineZoomed16(drawPos,xDrawStart,roadData[3],0x7fffffff,worldY,backgrTex,leftBorder,rightBorder,zoom);
 		drawPos+=rowBytesSkip;
 	}
-	if(drawPos!=gBaseAddr+640*(gPrefs.lineSkip?240:480)*2+(gPrefs.lineSkip?240:480)*rowBytesSkip)DoError(paramErr);
+	if(drawPos!=gBaseAddr+gXSize*(gPrefs.lineSkip?240:480)*2+(gPrefs.lineSkip?240:480)*rowBytesSkip)DoError(paramErr);
 }

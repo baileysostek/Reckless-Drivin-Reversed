@@ -58,5 +58,7 @@ static inline UInt16 ShadeRGB16(int shade, UInt16 a)
 }
 
 void WindowToFramebuffer(int winX, int winY, int *fbX, int *fbY);
+void ResizeFramebuffer(int newWidth);
+int ComputeWidescreenWidth(int winW, int winH);
 
 #endif

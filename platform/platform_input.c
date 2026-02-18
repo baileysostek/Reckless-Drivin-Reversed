@@ -3,6 +3,7 @@
 #include "mac_compat.h"
 #include "trig.h"
 #include "platform_input.h"
+#include "platform_screen.h"
 #include "vec2d.h"
 #include "objects.h"
 #include "gameframe.h"
@@ -191,6 +192,9 @@ void Input(tInputData **data)
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) {
                 gEndGame = true;
+            } else if (ev.type == SDL_WINDOWEVENT &&
+                       ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                ResizeFramebuffer(ComputeWidescreenWidth(ev.window.data1, ev.window.data2));
             }
         }
     }

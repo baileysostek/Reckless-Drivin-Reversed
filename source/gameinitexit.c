@@ -164,7 +164,7 @@ int LoadLevel()
 	if(gLevelID>=kEncryptedPack-kPackLevel1||gLevelResFile)
 		if(!gRegistered)
 		{
-			ShowPicScreen(1005);
+			ShowPicScreen(PPIC_SEEN_EVERYTHING_TEXT);
 			WaitForPress();
 			BeQuiet();
 			InitInterface();

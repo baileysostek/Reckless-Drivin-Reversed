@@ -72,6 +72,9 @@ void DrawRoadZoomed16(float,float,float);
 
 #define kMaxMarkLength	128
 
+/* Widescreen: center the 640-wide HUD panel in the framebuffer */
+#define kPanelXOff ((gXSize - 640) / 2)
+
 int gBonusCount;
 int gNoBonusScore;
 
@@ -101,12 +104,12 @@ int DrawComplCount()
 	float timeDiff=gLevelData->time-gGameTime>0?gLevelData->time-gGameTime:0;
 	float countTime=timeDiff*kCountBonusSpeed;
 	int bonus=timeDiff*10;
-	if(gFinishDelay>=kShowComplDelay) 
-		DrawRLE(0,gYSize/2-kComplYSize/2,149);	
-	else if(gFinishDelay>=kScrollComplDelay) 
+	if(gFinishDelay>=kShowComplDelay)
+		DrawRLE(kPanelXOff,gYSize/2-kComplYSize/2,149);
+	else if(gFinishDelay>=kScrollComplDelay)
 	{
 		int yPos=(gYSize/2+kComplYSize/2)*sqrt((gFinishDelay-kScrollComplDelay)/(kShowComplDelay-kScrollComplDelay))-kComplYSize;
-		DrawRLEYClip(0,yPos,149);	
+		DrawRLEYClip(kPanelXOff,yPos,149);	
 		gNoBonusScore=gPlayerScore;
 		gBonusCount=0;
 	}
@@ -117,12 +120,12 @@ int DrawComplCount()
 			gPrefs.lapRecords[gLevelID]=gGameTime;
 			SimplePlaySound(155);
 		}
-		DrawNum(kTimeBestX+kTimeMinuteOffs,kTimeBestY,floor(gPrefs.lapRecords[gLevelID])/60,2);
-		DrawNumZeroed(kTimeBestX,kTimeBestY,(int)floor(gPrefs.lapRecords[gLevelID])%60,2);
-		DrawNum(kTimeBestX+kTimeDecimalOffs,kTimeBestY,(int)floor(gPrefs.lapRecords[gLevelID]*10),1);
-		DrawNum(kTimeTakeX+kTimeMinuteOffs,kTimeTakeY,floor(gGameTime)/60,2);
-		DrawNumZeroed(kTimeTakeX,kTimeTakeY,(int)floor(gGameTime)%60,2);
-		DrawNum(kTimeTakeX+kTimeDecimalOffs,kTimeTakeY,(int)floor(gGameTime*10)%10,1);
+		DrawNum(kPanelXOff+kTimeBestX+kTimeMinuteOffs,kTimeBestY,floor(gPrefs.lapRecords[gLevelID])/60,2);
+		DrawNumZeroed(kPanelXOff+kTimeBestX,kTimeBestY,(int)floor(gPrefs.lapRecords[gLevelID])%60,2);
+		DrawNum(kPanelXOff+kTimeBestX+kTimeDecimalOffs,kTimeBestY,(int)floor(gPrefs.lapRecords[gLevelID]*10),1);
+		DrawNum(kPanelXOff+kTimeTakeX+kTimeMinuteOffs,kTimeTakeY,floor(gGameTime)/60,2);
+		DrawNumZeroed(kPanelXOff+kTimeTakeX,kTimeTakeY,(int)floor(gGameTime)%60,2);
+		DrawNum(kPanelXOff+kTimeTakeX+kTimeDecimalOffs,kTimeTakeY,(int)floor(gGameTime*10)%10,1);
 	}	
 	if(gFinishDelay>=kStartBonusDelay)
 	{
@@ -133,18 +136,18 @@ int DrawComplCount()
 			gBonusCount++;
 			SimplePlaySound(148);
 		}
-		DrawNum(kTimeLeftX+kTimeMinuteOffs,kTimeLeftY,floor(timeDiff-timeDiff*bonusPerc)/60,2);
-		DrawNumZeroed(kTimeLeftX,kTimeLeftY,(int)floor(timeDiff-timeDiff*bonusPerc)%60,2);
-		DrawNum(kTimeLeftX+kTimeDecimalOffs,kTimeLeftY,(int)floor((timeDiff-timeDiff*bonusPerc)*10),1);
-		DrawNum(kTimeBonusX,kTimeBonusY,bonus*bonusPerc,5);
+		DrawNum(kPanelXOff+kTimeLeftX+kTimeMinuteOffs,kTimeLeftY,floor(timeDiff-timeDiff*bonusPerc)/60,2);
+		DrawNumZeroed(kPanelXOff+kTimeLeftX,kTimeLeftY,(int)floor(timeDiff-timeDiff*bonusPerc)%60,2);
+		DrawNum(kPanelXOff+kTimeLeftX+kTimeDecimalOffs,kTimeLeftY,(int)floor((timeDiff-timeDiff*bonusPerc)*10),1);
+		DrawNum(kPanelXOff+kTimeBonusX,kTimeBonusY,bonus*bonusPerc,5);
 		gPlayerScore=gNoBonusScore+bonus*bonusPerc;
 	}	
 	else if(gFinishDelay>=kShowBonusTimeDelay)
 	{
-		DrawNum(kTimeLeftX+kTimeMinuteOffs,kTimeLeftY,floor(timeDiff)/60,2);
-		DrawNumZeroed(kTimeLeftX,kTimeLeftY,(int)floor(timeDiff)%60,2);
-		DrawNum(kTimeLeftX+kTimeDecimalOffs,kTimeLeftY,(int)floor(timeDiff*10),1);
-		DrawNum(kTimeBonusX,kTimeBonusY,0,5);
+		DrawNum(kPanelXOff+kTimeLeftX+kTimeMinuteOffs,kTimeLeftY,floor(timeDiff)/60,2);
+		DrawNumZeroed(kPanelXOff+kTimeLeftX,kTimeLeftY,(int)floor(timeDiff)%60,2);
+		DrawNum(kPanelXOff+kTimeLeftX+kTimeDecimalOffs,kTimeLeftY,(int)floor(timeDiff*10),1);
+		DrawNum(kPanelXOff+kTimeBonusX,kTimeBonusY,0,5);
 	}	
 	if(gFinishDelay>=kStartBonusDelay+countTime+kMultiplyDelay)
 		if(gPlayerBonus!=1)
@@ -154,8 +157,8 @@ int DrawComplCount()
 				SimplePlaySound(141);
 				gBonusCount=32767;
 			}
-			DrawRLE(kTimeBonus2X-5*kDigitOffs,kTimeBonus2Y,137+gPlayerBonus);
-			DrawNum(kTimeBonus2X,kTimeBonus2Y,bonus*gPlayerBonus,5);	
+			DrawRLE(kPanelXOff+kTimeBonus2X-5*kDigitOffs,kTimeBonus2Y,137+gPlayerBonus);
+			DrawNum(kPanelXOff+kTimeBonus2X,kTimeBonus2Y,bonus*gPlayerBonus,5);	
 		}
 	if(gFinishDelay>=kStartBonusDelay+countTime+kCloseDelay)
 	{
@@ -179,18 +182,19 @@ void DrawDisplays()
 		veloDisplay=-PI/2+VEC2D_DotProduct(gCameraObj->velo,P2D(sin(gCameraObj->dir),cos(gCameraObj->dir)))*PI/kMaxDisplayVelo;
 	else
 		veloDisplay=-PI/2+gCameraObj->input.throttle*PI;
-	DrawRLE(0,gYSize-kPanelHeight,148);	
-	DrawSprite(189,148,gYSize-14,veloDisplay,1);
-	DrawNum(kScoreX,gYSize-kScoreY,gDisplayScore,6);
-	DrawNum(kLiveX,gYSize-kLiveY,gPlayerLives,2);
-	DrawNum(kTimeX+kTimeMinuteOffs,gYSize-kTimeY,floor(timeDisp)/60,2);
-	DrawNumZeroed(kTimeX,gYSize-kTimeY,(int)floor(timeDisp)%60,2);
-	DrawNum(kTimeX+kTimeDecimalOffs,gYSize-kTimeY,(int)floor(timeDisp*10),1);
+	DrawRLE(kPanelXOff,gYSize-kPanelHeight,148); // Draw background dashboard graphic
+	DrawSprite(189,kPanelXOff+148,gYSize-14,veloDisplay,1); // Draw the speedometer dial 
+	DrawNum(kPanelXOff+kScoreX,gYSize-kScoreY,gDisplayScore,6); // Draw score
+	DrawNum(kPanelXOff+kLiveX,gYSize-kLiveY,gPlayerLives,2); // Draw number of lives
+	// Draw time remaining
+	DrawNum(kPanelXOff+kTimeX+kTimeMinuteOffs,gYSize-kTimeY,floor(timeDisp)/60,2); // Draw minutes
+	DrawNumZeroed(kPanelXOff+kTimeX,gYSize-kTimeY,(int)floor(timeDisp)%60,2); // Draw seconds
+	DrawNum(kPanelXOff+kTimeX+kTimeDecimalOffs,gYSize-kTimeY,(int)floor(timeDisp*10),1); // Draw tenths of seconds
 	for(i=0;i<6;i++)
 		if(gPlayerAddOns&1<<i)
-			DrawRLE(kAddOnX+20*i,gYSize-kAddOnY,142+i);
+			DrawRLE(kPanelXOff+kAddOnX+20*i,gYSize-kAddOnY,142+i);
 	if(gPlayerBonus!=1)
-		DrawRLE(kAddOnX+6*20,gYSize-kAddOnY,137+gPlayerBonus);
+		DrawRLE(kPanelXOff+kAddOnX+6*20,gYSize-kAddOnY,137+gPlayerBonus);
 	if(gNumMissiles)
 	{
 		Str31 numStr;
@@ -215,7 +219,7 @@ int DrawPanel()
 		if(gFinishDelay) 
 			return DrawComplCount();
 		else if(gPlayerDeathDelay)
-			DrawRLE(0,gYSize-kPanelHeight,150);	
+			DrawRLE(kPanelXOff,gYSize-kPanelHeight,150);	
 		else 
 			DrawDisplays();
 	return true;

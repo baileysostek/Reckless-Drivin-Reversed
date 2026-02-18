@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "resources.h"
+
 #include "mac_compat.h"
 #include "endian_compat.h"
 #include "platform_screen.h"
@@ -41,26 +43,27 @@ static uint8_t *gBaseAddrAlloc; /* actual allocation (guard + fb + guard) */
 
 static void InitGuardZones(void)
 {
+    int fbSize = gXSize * gYSize * 2;
     memset(gBaseAddrAlloc, GUARD_PATTERN, GUARD_SIZE);
-    memset(gBaseAddrAlloc + GUARD_SIZE + 640 * 480 * 2, GUARD_PATTERN, GUARD_SIZE);
+    memset(gBaseAddrAlloc + GUARD_SIZE + fbSize, GUARD_PATTERN, GUARD_SIZE);
 }
 
 static void CheckGuardZones(const char *context)
 {
     int i;
     int preCorrupt = 0, postCorrupt = 0;
+    int fbSize = gXSize * gYSize * 2;
 
     for (i = 0; i < GUARD_SIZE; i++) {
         if (gBaseAddrAlloc[i] != GUARD_PATTERN)
             preCorrupt++;
-        if (gBaseAddrAlloc[GUARD_SIZE + 640 * 480 * 2 + i] != GUARD_PATTERN)
+        if (gBaseAddrAlloc[GUARD_SIZE + fbSize + i] != GUARD_PATTERN)
             postCorrupt++;
     }
 
     if (preCorrupt) {
         fprintf(stderr, "[GUARD] %s: PRE-BUFFER underflow detected! %d/%d guard bytes corrupted\n",
                 context, preCorrupt, GUARD_SIZE);
-        /* Find the last corrupted byte to estimate how far the underflow reached */
         for (i = GUARD_SIZE - 1; i >= 0; i--)
             if (gBaseAddrAlloc[i] != GUARD_PATTERN) {
                 fprintf(stderr, "[GUARD] Underflow reached %d bytes before gBaseAddr\n", GUARD_SIZE - i);
@@ -70,18 +73,16 @@ static void CheckGuardZones(const char *context)
     if (postCorrupt) {
         fprintf(stderr, "[GUARD] %s: POST-BUFFER overflow detected! %d/%d guard bytes corrupted\n",
                 context, postCorrupt, GUARD_SIZE);
-        /* Find the first corrupted byte to estimate how far the overflow reached */
         for (i = 0; i < GUARD_SIZE; i++)
-            if (gBaseAddrAlloc[GUARD_SIZE + 640 * 480 * 2 + i] != GUARD_PATTERN) {
+            if (gBaseAddrAlloc[GUARD_SIZE + fbSize + i] != GUARD_PATTERN) {
                 fprintf(stderr, "[GUARD] Overflow reached %d bytes past gBaseAddr end\n", i + 1);
                 break;
             }
     }
 
     if (preCorrupt || postCorrupt) {
-        fprintf(stderr, "[GUARD] This indicates rendering code is writing outside the 640x480 framebuffer!\n");
+        fprintf(stderr, "[GUARD] This indicates rendering code is writing outside the %dx%d framebuffer!\n", gXSize, gYSize);
         fflush(stderr);
-        /* Re-initialize guard zones so we can see if it happens again */
         InitGuardZones();
     }
 }
@@ -109,9 +110,73 @@ static char gMessageBuffer[1024];
 static char *gMessagePos;
 static int gMessageCount;
 
+/* ---- ComputeWidescreenWidth ---- */
+int ComputeWidescreenWidth(int winW, int winH)
+{
+    int w;
+    if (winH <= 0) return 640;
+    w = (int)(480.0f * winW / winH);
+    w &= ~1; /* round to even */
+    if (w < 640) w = 640;
+    if (w > 3840) w = 3840;
+    return w;
+}
+
+/* ---- ResizeFramebuffer ---- */
+void ResizeFramebuffer(int newWidth)
+{
+    int widescreen = 1;
+    if (!widescreen) return;
+
+    int fbSize;
+
+    if (newWidth < 640) newWidth = 640;
+    if (newWidth > 3840) newWidth = 3840;
+    newWidth &= ~1; /* round to even */
+    if (newWidth == gXSize) return;
+
+    /* Free old buffers */
+    if (gBaseAddrAlloc) {
+        free(gBaseAddrAlloc);
+        gBaseAddrAlloc = NULL;
+        gBaseAddr = NULL;
+    }
+    if (gConvertBuffer) {
+        free(gConvertBuffer);
+        gConvertBuffer = NULL;
+    }
+
+    gXSize = (short)newWidth;
+    gRowBytes = (short)(newWidth * 2);
+
+    /* Allocate new framebuffer with guard zones */
+    fbSize = newWidth * 480 * 2;
+    gBaseAddrAlloc = (uint8_t *)calloc(GUARD_SIZE + fbSize + GUARD_SIZE, 1);
+    gBaseAddr = (Ptr)(gBaseAddrAlloc + GUARD_SIZE);
+    InitGuardZones();
+
+    /* Allocate new RGBA32 conversion buffer */
+    gConvertBuffer = (uint32_t *)calloc(newWidth * 480, sizeof(uint32_t));
+
+    /* Recreate GL texture at new size */
+    if (gFramebufferTexture) {
+        glDeleteTextures(1, &gFramebufferTexture);
+        gFramebufferTexture = 0;
+    }
+    glGenTextures(1, &gFramebufferTexture);
+    glBindTexture(GL_TEXTURE_2D, gFramebufferTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, newWidth, 480, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+    fprintf(stderr, "[ResizeFramebuffer] New size: %dx480\n", newWidth);
+}
+
 /* ---- InitScreen ---- */
 void InitScreen(void)
 {
+    int winW, winH;
+
     if (gScreenInited)
         return;
 
@@ -120,14 +185,13 @@ void InitScreen(void)
         exit(1);
     }
 
-    gXSize = 640;
     gYSize = 480;
 
     gWindow = SDL_CreateWindow(
         "Reckless Drivin'",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         640, 480,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_FULLSCREEN_DESKTOP
     );
     if (!gWindow) {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -141,21 +205,25 @@ void InitScreen(void)
     }
     SDL_GL_SetSwapInterval(1);
 
+    /* Compute initial framebuffer width based on window aspect ratio */
+    SDL_GetWindowSize(gWindow, &winW, &winH);
+    gXSize = (short)ComputeWidescreenWidth(winW, winH);
+    gRowBytes = (short)(gXSize * 2);
+
     /* Create framebuffer texture */
     glGenTextures(1, &gFramebufferTexture);
     glBindTexture(GL_TEXTURE_2D, gFramebufferTexture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 640, 480, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gXSize, 480, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
     /* Allocate 16-bit software framebuffer with guard zones */
-    gBaseAddrAlloc = (uint8_t *)calloc(GUARD_SIZE + 640 * 480 * 2 + GUARD_SIZE, 1);
+    gBaseAddrAlloc = (uint8_t *)calloc(GUARD_SIZE + gXSize * 480 * 2 + GUARD_SIZE, 1);
     gBaseAddr = (Ptr)(gBaseAddrAlloc + GUARD_SIZE);
-    gRowBytes = 1280;
     InitGuardZones();
 
     /* Allocate RGBA32 conversion buffer */
-    gConvertBuffer = (uint32_t *)calloc(640 * 480, sizeof(uint32_t));
+    gConvertBuffer = (uint32_t *)calloc(gXSize * 480, sizeof(uint32_t));
 
     gScreenMode = kScreenSuspended;
     gScreenInited = 1;
@@ -171,7 +239,7 @@ void Blit2Screen(void)
     int winW, winH;
     int vpX, vpY, vpW, vpH;
     float aspectWin, aspectGame;
-    int totalPixels = 640 * 480;
+    int totalPixels = gXSize * gYSize;
     int i;
     const uint8_t *src = (const uint8_t *)gBaseAddr;
 
@@ -202,23 +270,23 @@ void Blit2Screen(void)
 
     /* Upload to texture */
     glBindTexture(GL_TEXTURE_2D, gFramebufferTexture);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 640, 480, GL_RGBA, GL_UNSIGNED_BYTE, gConvertBuffer);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, gXSize, gYSize, GL_RGBA, GL_UNSIGNED_BYTE, gConvertBuffer);
 
-    /* Compute letterbox viewport maintaining 4:3 aspect */
+    /* Compute viewport — framebuffer aspect matches game, fill window */
     SDL_GetWindowSize(gWindow, &winW, &winH);
     if (winW < 1 || winH < 1)
         return;  /* Window minimized or zero-sized; skip rendering */
     aspectWin = (float)winW / (float)winH;
-    aspectGame = 640.0f / 480.0f;
+    aspectGame = (float)gXSize / (float)gYSize;
 
     if (aspectWin > aspectGame) {
-        /* Window is wider than 4:3 -- pillarbox */
+        /* Window is wider than framebuffer -- pillarbox */
         vpH = winH;
         vpW = (int)(winH * aspectGame);
         vpX = (winW - vpW) / 2;
         vpY = 0;
     } else {
-        /* Window is taller than 4:3 -- letterbox */
+        /* Window is taller than framebuffer -- letterbox */
         vpW = winW;
         vpH = (int)(winW / aspectGame);
         vpX = 0;
@@ -343,7 +411,7 @@ Point GetScreenPos(Point *inPos)
         }
 
         aspectWin = (float)winW / (float)winH;
-        aspectGame = 640.0f / 480.0f;
+        aspectGame = (float)gXSize / (float)gYSize;
 
         if (aspectWin > aspectGame) {
             vpH = winH;
@@ -357,15 +425,15 @@ Point GetScreenPos(Point *inPos)
             vpY = (winH - vpH) / 2;
         }
 
-        /* Scale mouse coords to 640x480 game coords, accounting for letterbox */
-        result.h = (short)((mx - vpX) * 640 / vpW);
-        result.v = (short)((my - vpY) * 480 / vpH);
+        /* Scale mouse coords to game coords, accounting for letterbox */
+        result.h = (short)((mx - vpX) * gXSize / vpW);
+        result.v = (short)((my - vpY) * gYSize / vpH);
 
         /* Clamp */
         if (result.h < 0) result.h = 0;
-        if (result.h > 639) result.h = 639;
+        if (result.h > gXSize - 1) result.h = gXSize - 1;
         if (result.v < 0) result.v = 0;
-        if (result.v > 479) result.v = 479;
+        if (result.v > gYSize - 1) result.v = gYSize - 1;
     }
 
     return result;
@@ -387,7 +455,7 @@ void WindowToFramebuffer(int winX, int winY, int *fbX, int *fbY)
     }
 
     aspectWin = (float)winW / (float)winH;
-    aspectGame = 640.0f / 480.0f;
+    aspectGame = (float)gXSize / (float)gYSize;
 
     if (aspectWin > aspectGame) {
         vpH = winH;
@@ -401,13 +469,13 @@ void WindowToFramebuffer(int winX, int winY, int *fbX, int *fbY)
         vpY = (winH - vpH) / 2;
     }
 
-    *fbX = (winX - vpX) * 640 / vpW;
-    *fbY = (winY - vpY) * 480 / vpH;
+    *fbX = (winX - vpX) * gXSize / vpW;
+    *fbY = (winY - vpY) * gYSize / vpH;
 
     if (*fbX < 0) *fbX = 0;
-    if (*fbX > 639) *fbX = 639;
+    if (*fbX > gXSize - 1) *fbX = gXSize - 1;
     if (*fbY < 0) *fbY = 0;
-    if (*fbY > 479) *fbY = 479;
+    if (*fbY > gYSize - 1) *fbY = gYSize - 1;
 }
 
 /* Convert an 8-bit RGB triplet to big-endian 1-5-5-5 XRGB pixel */

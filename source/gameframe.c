@@ -24,6 +24,8 @@ UInt64 gStartMS,gPauseMS,gLastGraphFrameMS[kGraphFrameCount];
 unsigned long gFrameCount,gGraphFrameCount;
 int gEndGame;
 
+extern short gXSize;
+
 void InitFrameCount()
 {
 	gFrameCount=0;
@@ -221,8 +223,13 @@ void PlayerHandling()
 		if(!gPlayerDeathDelay)
 		{
 			tTextEffect fx;
-			fx.x=320; fx.y=240; fx.effectFlags=kEffectExplode; fx.fxStartFrame=0;
-			fx.text[0]=15; memcpy(fx.text+1, "LEVELhCOMPLETED", 15);
+			int xOff = (gXSize - 640) / 2;
+			fx.x = xOff + 320;
+			fx.y = 240;
+			fx.effectFlags = kEffectExplode;
+			fx.fxStartFrame = 0;
+			fx.text[0] = 15;
+			memcpy(fx.text+1, "LEVELhCOMPLETED", 15);
 			NewTextEffect(&fx);
 			if(!gFinishDelay)
 				gFinishDelay=0.001;

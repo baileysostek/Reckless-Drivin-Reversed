@@ -6,6 +6,8 @@
 #include <SDL.h>
 #include <string.h>
 #include <stdio.h>
+
+#include "resources.h"
 #include "mac_compat.h"
 #include "endian_compat.h"
 #include "quickdraw.h"
@@ -63,11 +65,12 @@ extern void SetGameVolume(int);
 
 /* Forward declarations */
 static void FillRect16(Ptr buf, int rowBytes, Rect *r, UInt16 color);
-static int LoadPPic(int id, Ptr destBuf, int rowBytes);
+int LoadPPic(PPicID id, Ptr destBuf, int rowBytes);
 static void DrawScreen(int button, Ptr src);
 static void UpdateButtonLocation(void);
 static int GetButtonClick(int mx, int my);
 static void HandleCommand(int cmd);
+static void BlitCentered(Ptr dst, Ptr src640);
 
 /* ------------------------------------------------------------------ */
 
@@ -87,7 +90,7 @@ static void FillRect16(Ptr buf, int rowBytes, Rect *r, UInt16 color)
  * into a 16-bit framebuffer using the QuickDraw PICT parser.
  * Returns 1 on success, 0 on failure.
  */
-static int LoadPPic(int id, Ptr destBuf, int rowBytes)
+int LoadPPic(PPicID id, Ptr destBuf, int rowBytes)
 {
     char path[256];
     FILE *f;
@@ -167,30 +170,47 @@ static int LoadPPic(int id, Ptr destBuf, int rowBytes)
 
 /* ------------------------------------------------------------------ */
 
-void ShowPicScreen(int id)
+/*
+ * BlitCentered - Copy a 640x480 source buffer centered into the (possibly wider)
+ * framebuffer at dst. Clears dst to black first, then copies each row centered.
+ */
+static void BlitCentered(Ptr dst, Ptr src640)
 {
-    int rowBytes = 640 * 2;
+    int y;
+    int xOff = (gXSize - 640) / 2;
+    memset(dst, 0, gRowBytes * gYSize);
+    for (y = 0; y < 480; y++)
+        memcpy(dst + y * gRowBytes + xOff * 2, src640 + y * 640 * 2, 640 * 2);
+}
+
+/* ------------------------------------------------------------------ */
+
+void ShowPicScreen(PPicID id)
+{
+    Ptr tmpBuf = NewPtrClear(640 * 480 * 2);
 
     FadeScreen(1);
     Blit2Screen();  /* show the faded-out (black) frame */
     ScreenMode(kScreenRunning);
 
-    /* Clear to black first, then load the PPic image */
-    memset(gBaseAddr, 0, 640 * 480 * 2);
-    LoadPPic(id, gBaseAddr, rowBytes);
+    /* Load PPic into 640-wide temp buffer, then center onto framebuffer */
+    LoadPPic(id, tmpBuf, 640 * 2);
+    BlitCentered(gBaseAddr, tmpBuf);
+    DisposePtr(tmpBuf);
 
     FadeScreen(0);  /* restore full brightness before blitting new content */
     Blit2Screen();
 }
 
-void ShowPicScreenNoFade(int id)
+void ShowPicScreenNoFade(PPicID id)
 {
-    int rowBytes = 640 * 2;
+    Ptr tmpBuf = NewPtrClear(640 * 480 * 2);
 
     ScreenMode(kScreenRunning);
 
-    memset(gBaseAddr, 0, 640 * 480 * 2);
-    LoadPPic(id, gBaseAddr, rowBytes);
+    LoadPPic(id, tmpBuf, 640 * 2);
+    BlitCentered(gBaseAddr, tmpBuf);
+    DisposePtr(tmpBuf);
 
     Blit2Screen();
 }
@@ -221,14 +241,14 @@ void InitInterface(void)
         MacSetRect(&gButtons[6], 426, 230, 478, 246); /* About (small, right of center) */
         gNumButtons = 7;
 
-        LoadPPic(1000, gMainScreenBuf, 640 * 2);
-        LoadPPic(1001, gHilitBuf, 640 * 2);
-        LoadPPic(1002, gSelectedBuf, 640 * 2);
+        LoadPPic(PPIC_MENU, gMainScreenBuf, 640 * 2);
+        LoadPPic(PPIC_MENU_HIGHLIGHT, gHilitBuf, 640 * 2);
+        LoadPPic(PPIC_MENU_SELECTED, gSelectedBuf, 640 * 2);
         gInterfaceInited = 1;
     }
 
     ScreenMode(kScreenRunning);
-    memcpy(gBaseAddr, gMainScreenBuf, bufSize);
+    BlitCentered(gBaseAddr, gMainScreenBuf);
     Blit2Screen();
     FadeScreen(0);
     gGameOn = 0;
@@ -246,10 +266,9 @@ void DisposeInterface(void)
 
 void ScreenUpdate(WindowPtr win)
 {
-    int bufSize = 640 * 480 * 2;
     (void)win;
     gButtonLocation = kNoButton;
-    memcpy(gBaseAddr, gMainScreenBuf, bufSize);
+    BlitCentered(gBaseAddr, gMainScreenBuf);
     Blit2Screen();
 }
 
@@ -257,21 +276,22 @@ void ScreenUpdate(WindowPtr win)
 
 static void DrawScreen(int button, Ptr src)
 {
-    int rowBytes = 640 * 2;
+    int srcRowBytes = 640 * 2;
+    int xOff = (gXSize - 640) / 2;
 
     if (button != kNoButton) {
-        /* Copy just the button rectangle from src to gBaseAddr */
+        /* Copy just the button rectangle from 640-wide src to centered framebuffer */
         Rect *r = &gButtons[button];
         int y;
         for (y = r->top; y < r->bottom; y++) {
-            memcpy(gBaseAddr + y * rowBytes + r->left * 2,
-                   src       + y * rowBytes + r->left * 2,
+            memcpy(gBaseAddr + y * gRowBytes + (r->left + xOff) * 2,
+                   src       + y * srcRowBytes + r->left * 2,
                    (r->right - r->left) * 2);
         }
         Blit2Screen();
     } else {
-        /* Copy entire screen */
-        memcpy(gBaseAddr, src, 640 * 480 * 2);
+        /* Copy entire screen centered */
+        BlitCentered(gBaseAddr, src);
         Blit2Screen();
     }
 }
@@ -290,9 +310,11 @@ static void UpdateButtonLocation(void)
     int mx, my;
     int i;
     int button = kNoButton;
+    int xOff = (gXSize - 640) / 2;
 
     SDL_GetMouseState(&mx, &my);
     WindowToFramebuffer(mx, my, &mx, &my);
+    mx -= xOff; /* convert to 640-wide button coordinate space */
 
     for (i = 0; i < gNumButtons; i++) {
         if (mx >= gButtons[i].left && mx < gButtons[i].right &&
@@ -317,9 +339,11 @@ static int GetButtonClick(int mx, int my)
     int button = kNoButton;
     int scaledX, scaledY;
     int clicked = 0, oldClicked = 0;
+    int xOff = (gXSize - 640) / 2;
 
     /* Scale to virtual coordinates accounting for letterbox viewport */
     WindowToFramebuffer(mx, my, &scaledX, &scaledY);
+    scaledX -= xOff; /* convert to 640-wide button coordinate space */
 
     /* Find which button was clicked */
     for (i = 0; i < gNumButtons; i++) {
@@ -345,6 +369,7 @@ static int GetButtonClick(int mx, int my)
 
         /* Scale current mouse position accounting for letterbox viewport */
         WindowToFramebuffer(mx, my, &scaledX, &scaledY);
+        scaledX -= xOff; /* convert to 640-wide button coordinate space */
 
         clicked = (scaledX >= gButtons[button].left && scaledX < gButtons[button].right &&
                    scaledY >= gButtons[button].top  && scaledY < gButtons[button].bottom);
@@ -440,14 +465,13 @@ static void HandleCommand(int cmd)
             ShowHighScores(-1);
             break;
         case kHelpButton:
-            ShowPicScreen(1007);
+            ShowPicScreen(PPIC_HELP_SCREEN_1);
             WaitForPress();
-            ShowPicScreen(1008);
+            ShowPicScreen(PPIC_HELP_SCREEN_2);
             WaitForPress();
             /* Redraw the menu */
-            FadeScreen(1);
-            ScreenUpdate(nil);
             FadeScreen(0);
+            ScreenUpdate(nil);
             break;
         case kQuitButton:
             gExit = 1;
@@ -476,8 +500,15 @@ void Eventloop(void)
                 break;
 
             case SDL_WINDOWEVENT:
-                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
-                    event.window.event == SDL_WINDOWEVENT_EXPOSED) {
+                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                    int newW = event.window.data1;
+                    int newH = event.window.data2;
+                    ResizeFramebuffer(ComputeWidescreenWidth(newW, newH));
+                    /* Re-center menu content on new framebuffer */
+                    if (gMainScreenBuf)
+                        BlitCentered(gBaseAddr, gMainScreenBuf);
+                    Blit2Screen();
+                } else if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
                     Blit2Screen();
                 }
                 break;
