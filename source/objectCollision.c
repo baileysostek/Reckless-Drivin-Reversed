@@ -32,7 +32,7 @@ enum{
 };
 
 void OnPlayerCollideBox(void);
-void ShowTextEffect(const char* text, int len, int style);
+void ShowTextEffect(const char* text, int style);
 
 extern short gXSize;
 
@@ -383,25 +383,25 @@ void OnPlayerCollideBox() {
         switch (options[i]) {
             case 0: // ADDONS LOCKED
                 if (!(gPlayerAddOns & kAddOnLock)) {
-                    ShowTextEffect("ADDONShLOCKEDf", 14, kEffectSinLines + kEffectMoveLeft);
+                    ShowTextEffect("ADDONShLOCKEDf", kEffectSinLines + kEffectMoveLeft);
                     gPlayerAddOns |= kAddOnLock;
                     return;
                 }
                 break;
 
             case 1: // MINES
-                ShowTextEffect("MINESee", 7, kEffectSinLines + kEffectMoveDown);
+                ShowTextEffect("MINESee", kEffectSinLines + kEffectMoveDown);
                 gNumMines += 5;
                 return;
 
             case 2: // MISSILES
-                ShowTextEffect("MISSILESe", 9, kEffectExplode);
+                ShowTextEffect("MISSILESe", kEffectExplode);
                 gNumMissiles += 5;
                 return;
 
             case 3: // SPIKES
                 if (!(gPlayerAddOns & kAddOnSpikes)) {
-                    ShowTextEffect("SPIKESe", 7, kEffectExplode);
+                    ShowTextEffect("SPIKESe", kEffectExplode);
                     gPlayerAddOns |= kAddOnSpikes;
                     return;
                 }
@@ -409,7 +409,7 @@ void OnPlayerCollideBox() {
 
             case 4: // POLICE JAMMER
                 if (!(gPlayerAddOns & kAddOnCop)) {
-                    ShowTextEffect("POLICEhJAMMER", 13, kEffectSinLines);
+                    ShowTextEffect("POLICEhJAMMER", kEffectSinLines);
                     gPlayerAddOns |= kAddOnCop;
                     return;
                 }
@@ -417,19 +417,19 @@ void OnPlayerCollideBox() {
 
             case 5: // TURBO ENGINE
                 if (!(gPlayerAddOns & kAddOnTurbo)) {
-                    ShowTextEffect("TURBOhENGINEeee", 15, kEffectExplode);
+                    ShowTextEffect("TURBOhENGINEeee", kEffectExplode);
                     gPlayerAddOns |= kAddOnTurbo;
                     return;
                 }
                 break;
 
             case 6: // SCORE AWARDED
-                ShowTextEffect("][[[hAWARDEDf", 13, kEffectExplode);
+                ShowTextEffect("][[[hAWARDEDf", kEffectExplode);
                 gPlayerScore += 2000;
                 return;
 
             case 7: // EXTRA LIFE
-                ShowTextEffect("EXTRAhLIFEee", 12, kEffectSinLines + kEffectMoveUp);
+                ShowTextEffect("EXTRAhLIFEee", kEffectSinLines + kEffectMoveUp);
                 gPlayerLives++;
                 SimplePlaySound(154);
                 return;
@@ -438,11 +438,10 @@ void OnPlayerCollideBox() {
 }
 
 // Helper to reduce code duplication for the text effects
-void ShowTextEffect(const char* text, int len, int style) {
+void ShowTextEffect(const char* text, int style) {
 		int xOff = (gXSize - 640) / 2;
     tTextEffect fx = {xOff + 320, 240, style, 0, {0}};
-    fx.text[0] = (char)len;
-    memcpy(fx.text + 1, text, len);
+    strcpy(fx.text, text);
     NewTextEffect(&fx);
 }
 
@@ -492,7 +491,7 @@ void HandleCollision(tObject *posObj)
 						if(posObj==gPlayerObj&&jumpScore)
 						{
 							tTextEffect fx;
-							Str31 str;
+							char str[32];
 							gPlayerScore+=jumpScore;
 							NumToString(jumpScore,str);
 							fx.x=posObj->pos.x;

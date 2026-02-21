@@ -33,12 +33,12 @@ void NewTextEffect(tTextEffect *effect)
 	}
 }
 
-void MakeFXStringFromNumStr(Str31 numStr,Str31 fxStr)
+void MakeFXStringFromNumStr(char numStr[32],char fxStr[32])
 {
 	int i;
-	for(i=0;i<numStr[0];i++)
-		fxStr[i+1]=numStr[i+1]+0x2b;
-	fxStr[0]=numStr[0];
+	for(i=0;numStr[i];i++)
+		fxStr[i]=numStr[i]+0x2b;
+	fxStr[i]='\0';
 }
 
 void DrawZoomedCharLine8(UInt8 **data,SInt32 x,SInt32 y,UInt32 zoom)
@@ -313,7 +313,8 @@ void DrawTextFX(int xDrawStart,int yDrawStart)
 	{
 		float dt=(gFrameCount-gTextFX[i].fxStartFrame)*kFrameDuration*(gTextFX[i].effectFlags&kEffectTiny?3:1);
 		float exploZoom=(gTextFX[i].effectFlags&kEffectExplode?1+0.5*dt*dt*kExplAccel:1)*(gTextFX[i].effectFlags&kEffectTiny?0.25:1);
-		float baseX=gTextFX[i].x-gTextFX[i].text[0]*kCharSize*0.5*exploZoom;
+		int textLen=(int)strlen(gTextFX[i].text);
+		float baseX=gTextFX[i].x-textLen*kCharSize*0.5*exploZoom;
 		float baseY=gTextFX[i].y-kCharSize*0.5*exploZoom;
 		if(gTextFX[i].effectFlags&kEffectAbsPos)
 		{
@@ -331,7 +332,7 @@ void DrawTextFX(int xDrawStart,int yDrawStart)
 			baseX-=0.5*dt*dt*kEffectAccel;
 		else if(gTextFX[i].effectFlags&kEffectMoveRight)
 			baseX+=0.5*dt*dt*kEffectAccel;
-		for(ch=1;ch<=gTextFX[i].text[0];ch++)
+		for(ch=0;ch<textLen;ch++)
 		{
 			Ptr theCH=GetSortedPackEntry(kPackcRLE,gTextFX[i].text[ch]-'A'+128,nil)+8;
 			float y=baseY;
@@ -362,7 +363,8 @@ void DrawTextFXZoomed(float xDrawStart,float yDrawStart,float zoom)
 	{
 		float dt=(gFrameCount-gTextFX[i].fxStartFrame)*kFrameDuration*(gTextFX[i].effectFlags&kEffectTiny?3:1);
 		float exploZoom=(gTextFX[i].effectFlags&kEffectExplode?1+0.5*dt*dt*kExplAccel:1)*(gTextFX[i].effectFlags&kEffectTiny?0.25:1);
-		float baseX=gTextFX[i].x-gTextFX[i].text[0]*kCharSize*0.5*exploZoom;
+		int textLen=(int)strlen(gTextFX[i].text);
+		float baseX=gTextFX[i].x-textLen*kCharSize*0.5*exploZoom;
 		float baseY=gTextFX[i].y-kCharSize*0.5*exploZoom;
 		if(gTextFX[i].effectFlags&kEffectAbsPos)
 		{
@@ -380,7 +382,7 @@ void DrawTextFXZoomed(float xDrawStart,float yDrawStart,float zoom)
 			baseX-=0.5*dt*dt*kEffectAccel;
 		else if(gTextFX[i].effectFlags&kEffectMoveRight)
 			baseX+=0.5*dt*dt*kEffectAccel;
-		for(ch=1;ch<=gTextFX[i].text[0];ch++)
+		for(ch=0;ch<textLen;ch++)
 		{
 			Ptr theCH=GetSortedPackEntry(gPrefs.hiColor?kPackcR16:kPackcRLE,gTextFX[i].text[ch]-'A'+128,nil)+8;
 			float y=baseY;
@@ -404,10 +406,10 @@ void DrawTextFXZoomed(float xDrawStart,float yDrawStart,float zoom)
 	}
 }
 
-void SimpleDrawText(Str255 text,int xPos,int yPos)
+void SimpleDrawText(char text[256],int xPos,int yPos)
 {
 	int ch,line;
-	for(ch=1;ch<=text[0];ch++)
+	for(ch=0;text[ch];ch++)
 	{
 		Ptr theCH=GetSortedPackEntry(gPrefs.hiColor?kPackcR16:kPackcRLE,text[ch]-'A'+128,nil)+8;
 		int y=yPos;

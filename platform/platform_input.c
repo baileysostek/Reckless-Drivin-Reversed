@@ -4,6 +4,7 @@
 #include "trig.h"
 #include "platform_input.h"
 #include "platform_screen.h"
+#include "preferences.h"
 #include "vec2d.h"
 #include "objects.h"
 #include "gameframe.h"
@@ -194,7 +195,8 @@ void Input(tInputData **data)
                 gEndGame = true;
             } else if (ev.type == SDL_WINDOWEVENT &&
                        ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-                ResizeFramebuffer(ComputeWidescreenWidth(ev.window.data1, ev.window.data2));
+                if (gPrefs.widescreen)
+                    ResizeFramebuffer(ComputeWidescreenWidth(ev.window.data1, ev.window.data2));
             }
         }
     }

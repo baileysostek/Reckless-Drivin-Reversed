@@ -192,7 +192,7 @@ void PlayerHandling()
 				{
 					tTextEffect fx;
 				fx.x=320; fx.y=240; fx.effectFlags=kEffectSinLines+kEffectMoveDown; fx.fxStartFrame=0;
-				fx.text[0]=9; memcpy(fx.text+1, "TIMEhUPee", 9);
+				strcpy(fx.text, "TIMEhUPee");
 					NewTextEffect(&fx);
 					SimplePlaySound(149);
 				}
@@ -211,7 +211,7 @@ void PlayerHandling()
 	{
 		tTextEffect fx;
 		fx.x=320; fx.y=240; fx.effectFlags=kEffectSinLines+kEffectMoveUp; fx.fxStartFrame=0;
-		fx.text[0]=12; memcpy(fx.text+1, "EXTRAhLIFEee", 12);
+		strcpy(fx.text, "EXTRAhLIFEee");
 		NewTextEffect(&fx);
 		gExtraLives++;
 		gPlayerLives++;
@@ -228,8 +228,7 @@ void PlayerHandling()
 			fx.y = 240;
 			fx.effectFlags = kEffectExplode;
 			fx.fxStartFrame = 0;
-			fx.text[0] = 15;
-			memcpy(fx.text+1, "LEVELhCOMPLETED", 15);
+			strcpy(fx.text, "LEVELhCOMPLETED");
 			NewTextEffect(&fx);
 			if(!gFinishDelay)
 				gFinishDelay=0.001;

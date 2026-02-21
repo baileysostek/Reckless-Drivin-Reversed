@@ -133,24 +133,14 @@ OSErr MemError(void)
     return gLastMemErr;
 }
 
-void NumToString(long theNum, Str255 theString)
+void NumToString(long theNum, char theString[256])
 {
-    char buf[32];
-    int len;
-    snprintf(buf, sizeof(buf), "%ld", theNum);
-    len = (int)strlen(buf);
-    if (len > 255) len = 255;
-    theString[0] = (unsigned char)len;
-    memcpy(theString + 1, buf, len);
+    snprintf(theString, 256, "%ld", theNum);
 }
 
-void StringToNum(const Str255 theString, long *theNum)
+void StringToNum(const char theString[256], long *theNum)
 {
-    char buf[256];
-    int len = theString[0];
-    memcpy(buf, theString + 1, len);
-    buf[len] = '\0';
-    *theNum = atol(buf);
+    *theNum = atol(theString);
 }
 
 void MacSetRect(Rect *r, short left, short top, short right, short bottom)

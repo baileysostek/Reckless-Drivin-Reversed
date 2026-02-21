@@ -6,7 +6,7 @@
 
 extern int gExit;
 extern short gLevelResFile,gAppResFile;
-extern Str63 gLevelFileName;
+extern char gLevelFileName[64];
 
 void SaveFlushEvents();
 void Eventloop();

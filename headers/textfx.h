@@ -18,14 +18,14 @@ typedef struct{
 	SInt32 x,y;			
 	UInt32 effectFlags;
 	UInt32 fxStartFrame;
-	Str31 text;
+	char text[32];
 } tTextEffect;
 
 void NewTextEffect(tTextEffect *);
 void DrawTextFX(int,int);
 void DrawTextFXZoomed(float,float,float);
-void SimpleDrawText(Str255,int,int);
-void MakeFXStringFromNumStr(Str31,Str31);
+void SimpleDrawText(char[256],int,int);
+void MakeFXStringFromNumStr(char[32],char[32]);
 void ClearTextFX();
 
 #endif

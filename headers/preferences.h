@@ -4,10 +4,10 @@
 #include "input.h"
 
 #define kNumHighScoreEntrys	10
-#define kPrefsVersion 4
+#define kPrefsVersion 7
 
 typedef struct{
-	Str15 name;
+	char name[16];
 	UInt32 time;
 	UInt32 score;
 }tScoreRecord;
@@ -18,12 +18,14 @@ typedef struct{
 	UInt8  sound,engineSound,hqSound,unused1;
 	UInt8  lineSkip,motionBlur,hiColor;
 	UInt8 hidElements[kNumElements];
-	UInt8  unused[11];
+	UInt8  fullscreen;
+	UInt8  widescreen;
+	UInt8  unused[9];
 	tScoreRecord	high[kNumHighScoreEntrys];
 	float lapRecords[10];
-	Str255 name,code;
+	char name[256],code[256];
 	UInt8 keyCodes[kNumElements];
-	Str255 lastName;
+	char lastName[256];
 }tPrefs;
 
 extern tPrefs gPrefs;

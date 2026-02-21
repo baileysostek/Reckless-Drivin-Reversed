@@ -21,6 +21,7 @@
 #include "mac_compat.h"
 #include "endian_compat.h"
 #include "platform_screen.h"
+#include "preferences.h"
 
 /* Extern from screenfx module */
 extern void ShiftInPicture(void);
@@ -125,9 +126,6 @@ int ComputeWidescreenWidth(int winW, int winH)
 /* ---- ResizeFramebuffer ---- */
 void ResizeFramebuffer(int newWidth)
 {
-    int widescreen = 1;
-    if (!widescreen) return;
-
     int fbSize;
 
     if (newWidth < 640) newWidth = 640;
@@ -187,12 +185,17 @@ void InitScreen(void)
 
     gYSize = 480;
 
-    gWindow = SDL_CreateWindow(
-        "Reckless Drivin'",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        640, 480,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_FULLSCREEN_DESKTOP
-    );
+    {
+        Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
+        if (gPrefs.fullscreen)
+            flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+        gWindow = SDL_CreateWindow(
+            "Reckless Drivin'",
+            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+            640, 480,
+            flags
+        );
+    }
     if (!gWindow) {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
         exit(1);
@@ -207,7 +210,10 @@ void InitScreen(void)
 
     /* Compute initial framebuffer width based on window aspect ratio */
     SDL_GetWindowSize(gWindow, &winW, &winH);
-    gXSize = (short)ComputeWidescreenWidth(winW, winH);
+    if (gPrefs.widescreen)
+        gXSize = (short)ComputeWidescreenWidth(winW, winH);
+    else
+        gXSize = 640;
     gRowBytes = (short)(gXSize * 2);
 
     /* Create framebuffer texture */
@@ -478,6 +484,34 @@ void WindowToFramebuffer(int winX, int winY, int *fbX, int *fbY)
     if (*fbY > gYSize - 1) *fbY = gYSize - 1;
 }
 
+/* ---- SetFullscreen / IsFullscreen ---- */
+void SetFullscreen(int enable)
+{
+    if (!gWindow) return;
+    if (enable) {
+        SDL_SetWindowFullscreen(gWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    } else {
+        SDL_SetWindowFullscreen(gWindow, 0);
+        SDL_SetWindowSize(gWindow, 640, 480);
+        SDL_SetWindowPosition(gWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    }
+    /* Resize framebuffer to match new window size */
+    {
+        int winW, winH;
+        SDL_GetWindowSize(gWindow, &winW, &winH);
+        if (gPrefs.widescreen)
+            ResizeFramebuffer(ComputeWidescreenWidth(winW, winH));
+        else
+            ResizeFramebuffer(640);
+    }
+}
+
+int IsFullscreen(void)
+{
+    if (!gWindow) return 0;
+    return (SDL_GetWindowFlags(gWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP) ? 1 : 0;
+}
+
 /* Convert an 8-bit RGB triplet to big-endian 1-5-5-5 XRGB pixel */
 static UInt16 RGB8toBE16(int r8, int g8, int b8)
 {
@@ -594,7 +628,7 @@ void FlushMessageBuffer(void)
 }
 
 /* ---- AddFloatToMessageBuffer ---- */
-void AddFloatToMessageBuffer(StringPtr label, float value)
+void AddFloatToMessageBuffer(const char *label, float value)
 {
     int len;
     char numStr[64];
@@ -602,12 +636,11 @@ void AddFloatToMessageBuffer(StringPtr label, float value)
     if (!label)
         return;
 
-    /* Pascal string: first byte is length */
-    len = label[0];
+    len = (int)strlen(label);
     if (gMessagePos + len + 20 > gMessageBuffer + sizeof(gMessageBuffer))
         return;
 
-    memcpy(gMessagePos, label + 1, len);
+    memcpy(gMessagePos, label, len);
     gMessagePos += len;
 
     snprintf(numStr, sizeof(numStr), "%.2f ", value);

@@ -14,6 +14,7 @@
 #include "lzrw3a.h"
 #include "lzrw.h"
 #include "platform_screen.h"
+#include "preferences.h"
 
 /* Button enums */
 enum {
@@ -30,7 +31,7 @@ enum {
 /* Globals extern'd in headers/interface.h */
 int gExit;
 short gLevelResFile = 0, gAppResFile;
-Str63 gLevelFileName;
+char gLevelFileName[64];
 
 /* Static globals */
 static Ptr gMainScreenBuf = NULL;   /* 640*480*2 bytes - normal menu framebuffer */
@@ -503,7 +504,8 @@ void Eventloop(void)
                 if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                     int newW = event.window.data1;
                     int newH = event.window.data2;
-                    ResizeFramebuffer(ComputeWidescreenWidth(newW, newH));
+                    if (gPrefs.widescreen)
+                        ResizeFramebuffer(ComputeWidescreenWidth(newW, newH));
                     /* Re-center menu content on new framebuffer */
                     if (gMainScreenBuf)
                         BlitCentered(gBaseAddr, gMainScreenBuf);

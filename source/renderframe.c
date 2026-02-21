@@ -197,7 +197,7 @@ void DrawDisplays()
 		DrawRLE(kPanelXOff+kAddOnX+6*20,gYSize-kAddOnY,137+gPlayerBonus);
 	if(gNumMissiles)
 	{
-		Str31 numStr;
+		char numStr[32];
 		DrawRLE(gXSize-120,5,154);
 		NumToString(gNumMissiles,numStr);
 		MakeFXStringFromNumStr(numStr,numStr);
@@ -205,7 +205,7 @@ void DrawDisplays()
 	}
 	if(gNumMines)
 	{
-		Str31 numStr;
+		char numStr[32];
 		DrawRLE(gXSize-120,gNumMissiles?30:5,155);
 		NumToString(gNumMines,numStr);
 		MakeFXStringFromNumStr(numStr,numStr);

@@ -31,7 +31,7 @@ void InitScreen(void);
 void SetScreenClut(int id);
 void ScreenMode(int mode);
 void Blit2Screen(void);
-void AddFloatToMessageBuffer(StringPtr label, float value);
+void AddFloatToMessageBuffer(const char *label, float value);
 void FlushMessageBuffer(void);
 void TakeScreenshot(void);
 Point GetScreenPos(Point *inPos);
@@ -60,5 +60,7 @@ static inline UInt16 ShadeRGB16(int shade, UInt16 a)
 void WindowToFramebuffer(int winX, int winY, int *fbX, int *fbY);
 void ResizeFramebuffer(int newWidth);
 int ComputeWidescreenWidth(int winW, int winH);
+void SetFullscreen(int enable);
+int  IsFullscreen(void);
 
 #endif

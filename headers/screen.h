@@ -27,7 +27,7 @@ void InitScreen(void);
 void SetScreenClut(int);
 void ScreenMode(int);
 void Blit2Screen(void);
-void AddFloatToMessageBuffer(StringPtr,float);
+void AddFloatToMessageBuffer(const char *,float);
 void FlushMessageBuffer(void);
 void TakeScreenshot(void);
 Point GetScreenPos(Point *);

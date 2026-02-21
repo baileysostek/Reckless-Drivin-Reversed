@@ -314,7 +314,7 @@ void KillObject(tObject *theObj)
 		{
 			tTextEffect fx;
 			fx.x=320; fx.y=240; fx.effectFlags=kEffectExplode; fx.fxStartFrame=0;
-			fx.text[0]=7; memcpy(fx.text+1, "OUCHeee", 7);
+			strcpy(fx.text, "OUCHeee");
 			NewTextEffect(&fx);
 			gPlayerLives--;
 			FFBJolt(1.0,1.0,1.0);
@@ -338,7 +338,7 @@ void KillObject(tObject *theObj)
 	else if((*objType).score)
 	{
 		tTextEffect fx;
-		Str31 str;
+		char str[32];
 		gPlayerScore+=(*objType).score;
 		NumToString((*objType).score,str);
 		fx.x=theObj->pos.x;

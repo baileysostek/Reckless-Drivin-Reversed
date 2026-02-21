@@ -12,9 +12,16 @@
 #include "screen.h"
 #include "sprites.h"
 
-/* From platform_screen.c - avoid including platform_screen.h (conflicts with screen.h) */
+/* From platform_screen.c */
 extern void ResizeFramebuffer(int newWidth);
 extern int ComputeWidescreenWidth(int winW, int winH);
+extern void WindowToFramebuffer(int winX, int winY, int *fbX, int *fbY);
+extern void SetFullscreen(int enable);
+extern void Blit2Screen(void);
+extern void FadeScreen(int);
+extern void ScreenUpdate(WindowPtr win);
+
+#include "font5x7.h"
 
 tPrefs gPrefs;
 extern int gOSX;
@@ -55,6 +62,8 @@ static void FirstRun(void)
 	gPrefs.hiColor = 1;
 	gPrefs.lineSkip = 0;
 	gPrefs.motionBlur = 0;
+	gPrefs.fullscreen = 1;
+	gPrefs.widescreen = 1;
 	/* Default key codes - SDL scancodes for arrow keys etc */
 	gPrefs.keyCodes[kForward] = 82;   /* SDL_SCANCODE_UP */
 	gPrefs.keyCodes[kBackward] = 81;  /* SDL_SCANCODE_DOWN */
@@ -123,29 +132,107 @@ void ReInitGraphics(void)
 	/* In SDL port, we only support 16-bit color, so this is mostly a no-op */
 }
 
+/* ------------------------------------------------------------------ */
+/* Preferences UI layout constants                                     */
+/* ------------------------------------------------------------------ */
+#define kPrefsTitle       "PREFERENCES"
+#define kPrefsTitleY      100
+#define kPrefsTitleScale  3
+
+#define kPrefsCheckScale  2
+#define kPrefsCheckCharW  (6 * kPrefsCheckScale)  /* pixel width of one char */
+#define kPrefsCheckH      (7 * kPrefsCheckScale)  /* pixel height of one line */
+
+/* Vertical position of each checkbox row */
+#define kPrefsRow1Y       180
+#define kPrefsRow2Y       220
+#define kPrefsHintY       300
+
+/* Horizontal offset from center for checkbox text */
+#define kPrefsCheckX      180   /* in 640-space, offset from left */
+
+static void DrawPrefsScreen(void)
+{
+    int xOff = (gXSize - 640) / 2;
+    const char *fs_label = gPrefs.fullscreen ? "[X] Fullscreen" : "[ ] Fullscreen";
+    const char *ws_label = gPrefs.widescreen ? "[X] Widescreen" : "[ ] Widescreen";
+
+    /* Clear framebuffer to black */
+    memset(gBaseAddr, 0, gXSize * gYSize * 2);
+
+    /* Title */
+    DrawStringCentered5x7(kPrefsTitleY, kPrefsTitle, kPrefsTitleScale, kColorYellowBE);
+
+    /* Checkbox rows */
+    DrawString5x7(kPrefsCheckX + xOff, kPrefsRow1Y, fs_label, kPrefsCheckScale, kColorWhiteBE);
+    DrawString5x7(kPrefsCheckX + xOff, kPrefsRow2Y, ws_label, kPrefsCheckScale, kColorCyanBE);
+
+    /* Hint */
+    DrawStringCentered5x7(kPrefsHintY, "Press ESC to return", kPrefsCheckScale, kColorGrayBE);
+
+    Blit2Screen();
+}
+
 void Preferences(void)
 {
-    int pressed = 0;
+    int done = 0;
     SDL_Event event;
 
-    /* Wait for press, redrawing on resize */
-    while (!pressed) {
-				Blit2Screen();
+    DrawPrefsScreen();
+
+    while (!done) {
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
                 case SDL_KEYDOWN:
-                case SDL_MOUSEBUTTONDOWN:
-                case SDL_JOYBUTTONDOWN:
-                case SDL_CONTROLLERBUTTONDOWN:
-                    pressed = 1;
+                    if (event.key.keysym.sym == SDLK_ESCAPE ||
+                        event.key.keysym.sym == SDLK_RETURN) {
+                        done = 1;
+                    }
                     break;
+
+                case SDL_MOUSEBUTTONDOWN:
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        int fbX, fbY;
+                        int xOff = (gXSize - 640) / 2;
+                        int textLeft = kPrefsCheckX + xOff;
+                        int textRight = textLeft + 14 * kPrefsCheckCharW;
+
+                        WindowToFramebuffer(event.button.x, event.button.y, &fbX, &fbY);
+
+                        /* Check fullscreen row */
+                        if (fbX >= textLeft && fbX < textRight &&
+                            fbY >= kPrefsRow1Y && fbY < kPrefsRow1Y + kPrefsCheckH + 4) {
+                            gPrefs.fullscreen = !gPrefs.fullscreen;
+                            SetFullscreen(gPrefs.fullscreen);
+                            DrawPrefsScreen();
+                        }
+                        /* Check widescreen row */
+                        else if (fbX >= textLeft && fbX < textRight &&
+                                 fbY >= kPrefsRow2Y && fbY < kPrefsRow2Y + kPrefsCheckH + 4) {
+                            gPrefs.widescreen = !gPrefs.widescreen;
+                            if (gPrefs.widescreen) {
+                                int winW, winH;
+                                SDL_GetWindowSize(SDL_GL_GetCurrentWindow(), &winW, &winH);
+                                ResizeFramebuffer(ComputeWidescreenWidth(winW, winH));
+                            } else {
+                                ResizeFramebuffer(640);
+                            }
+                            DrawPrefsScreen();
+                        }
+                    }
+                    break;
+
                 case SDL_WINDOWEVENT:
                     if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-                        ResizeFramebuffer(ComputeWidescreenWidth(event.window.data1, event.window.data2));
+                        if (gPrefs.widescreen)
+                            ResizeFramebuffer(ComputeWidescreenWidth(
+                                event.window.data1, event.window.data2));
+                        DrawPrefsScreen();
                     } else if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
                         Blit2Screen();
                     }
                     break;
+
                 case SDL_QUIT:
                     SDL_Quit();
                     exit(0);
@@ -154,7 +241,8 @@ void Preferences(void)
         SDL_Delay(10);
     }
 
-    /* Restore menu screen directly — no fade-to-black transition */
+    /* Save preferences and return to menu */
+    WritePrefs(0);
     FadeScreen(0);
     ScreenUpdate(nil);
 }

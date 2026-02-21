@@ -23,12 +23,6 @@ typedef char** Handle;
 /* Mac boolean */
 typedef unsigned char Boolean;
 
-/* Mac string types (Pascal strings: first byte is length) */
-typedef unsigned char Str255[256];
-typedef unsigned char Str63[64];
-typedef unsigned char Str31[32];
-typedef unsigned char Str15[16];
-typedef unsigned char* StringPtr;
 
 /* Mac graphics types */
 typedef struct { short top, left, bottom, right; } Rect;
@@ -117,8 +111,8 @@ void BlockMoveData(const void *srcPtr, void *destPtr, long byteCount);
 OSErr MemError(void);
 
 /* String utilities */
-void NumToString(long theNum, Str255 theString);
-void StringToNum(const Str255 theString, long *theNum);
+void NumToString(long theNum, char theString[256]);
+void StringToNum(const char theString[256], long *theNum);
 
 /* Rect utility - renamed to avoid conflict with Windows API SetRect */
 void MacSetRect(Rect *r, short left, short top, short right, short bottom);
@@ -213,7 +207,7 @@ typedef void* DialogPtr;
 #define TEFromScrap()
 
 /* File Manager stubs */
-typedef struct { short vRefNum; long parID; Str63 name; } FSSpec;
+typedef struct { short vRefNum; long parID; char name[64]; } FSSpec;
 #define FSMakeFSSpec(v,d,name,spec) 0
 #define FSpOpenDF(spec,perm,ref) (-1)
 #define FSpDelete(spec) 0
