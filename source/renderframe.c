@@ -655,7 +655,7 @@ void DrawSpriteLayerZoomed(float xDrawStart,float yDrawStart,float zoom,float ti
 				float y=(yDrawStart-theObj->pos.y)*invZoom;
 				if((y>-maxDrawOffs)&&(y<gYSize+maxDrawOffs))
 				{
-					float objTide=((*gRoadInfo).water&&(*theObj->type).flags2&kObjectFloating)?1+tide*0.5+tide*VEC2D_Value(theObj->velo)*0.04:1;
+					float objTide=((*gRoadInfo).water&&theObj->type&&(*theObj->type).flags2&kObjectFloating)?1+tide*0.5+tide*VEC2D_Value(theObj->velo)*0.04:1;
 					DrawSprite(theObj->frame,x,y,theObj->dir,objTide*invZoom);
 				}
 			}
@@ -678,7 +678,7 @@ void DrawSpriteLayerBlurZoomed(float xDrawStart,float yDrawStart,float zoom,floa
 				if((y>-maxDrawOffs)&&(y<gYSize+maxDrawOffs))
 				{
 					t2DPoint velDiff=VEC2D_Difference(gCameraObj->velo,theObj->velo);
-					float objTide=((*gRoadInfo).water&&(*theObj->type).flags2&kObjectFloating)?1+tide*0.5+tide*VEC2D_Value(theObj->velo)*0.04:1;
+					float objTide=((*gRoadInfo).water&&theObj->type&&(*theObj->type).flags2&kObjectFloating)?1+tide*0.5+tide*VEC2D_Value(theObj->velo)*0.04:1;
 					DrawSprite(theObj->frame,x,y,theObj->dir,objTide*invZoom);
 					if(velDiff.x*velDiff.x+velDiff.y*velDiff.y>35*35)
 					{

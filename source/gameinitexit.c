@@ -295,6 +295,7 @@ void DisposeLevel()
 		SpriteUnused((*(tObject*)gFirstObj->next).frame);
 		RemoveObject((tObject*)gFirstObj->next);
 	}
+	FlushRemovedObjects();
 	DisposePtr((Ptr)gFirstObj);
 	gFirstObj=nil;
 }
@@ -316,7 +317,7 @@ void StartGame(int lcheat)
 	gPlayerDeathDelay=0;
 	gFinishDelay=0;
 	gPlayerScore=0;
-	gLevelID=0;
+	gLevelID=0; // Starting Level
 	gPlayerCarID=kNormalPlayerCarID;
 	gNumMissiles=0;
 	gNumMines=0;

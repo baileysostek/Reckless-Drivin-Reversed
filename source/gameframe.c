@@ -78,7 +78,7 @@ void CopClear()
 	tObject	*theObj=(tObject*)(gFirstObj->next);
 	while(theObj!=gFirstObj)
 	{
-		if(theObj->type->flags&kObjectCop)	
+		if(theObj->type && theObj->type->flags&kObjectCop)
 		{
 			while(fabs(theObj->pos.y-gPlayerObj->pos.y)<kMinCopDist)
 			{

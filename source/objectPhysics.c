@@ -353,6 +353,7 @@ int CheckObjectMotion(tObject *theObj)
 		return true;
 	if(!theObj->rotVelo)
 		return false;
+	return false;
 }
 
 void MakeSmoke(tObject *theObj)
@@ -380,6 +381,7 @@ void Explosion(t2DPoint pos,t2DPoint velo,int offs,float mass,int sound);
 
 void ObjectPhysics(tObject *theObj)
 {
+	if(!theObj->type) return;
 	if(!theObj->jumpHeight||theObj->type->flags&kObjectHeliFlag)
 	{
 		if(theObj->type->flags&kObjectWheelFlag)
@@ -406,7 +408,12 @@ void ObjectPhysics(tObject *theObj)
 				{ KillObject(theObj); killed = 1; }}
 		else if(fabs(theObj->pos.y-gCameraObj->pos.y)<kVisDist)
 		{
-			if(phFlags&kObjectBackCollFlag||phFlags2&kObjectSink&&(*gRoadInfo).deathOffs){
+			/* Don't kill the player again while already dying — the wreck type
+			 * may still have kObjectBackCollFlag/kObjectSink, causing repeated
+			 * KillObject calls that exhaust the type chain and crash. */
+			if(theObj==gPlayerObj && gPlayerDeathDelay > 0)
+				{ /* skip collision/death for dying player */ }
+			else if(phFlags&kObjectBackCollFlag||phFlags2&kObjectSink&&(*gRoadInfo).deathOffs){
 				if(CalcBackCollision(theObj->pos)==2)
 					{ KillObject(theObj); killed = 1; }}
 			else if(phFlags2&kObjectFrontCollFlag){
@@ -414,6 +421,10 @@ void ObjectPhysics(tObject *theObj)
 					{ KillObject(theObj); killed = 1; }}
 			if(!killed && phFlags&kObjectBounce)
 				HandleCollision(theObj);
+			/* HandleCollision can kill posObj (theObj) via kObjectKillsCars.
+			 * KillObject->RemoveObject sets type=NULL (deferred free).
+			 * Detect this so we don't access freed/null type below. */
+			if(!killed && theObj->type == NULL) killed = 1;
 			if(!killed && phFlags&kObjectCop)
 				if(!(gPlayerAddOns&kAddOnCop)&&!gFinishDelay&&!gPlayerDeathDelay)
 				{

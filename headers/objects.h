@@ -152,6 +152,7 @@ extern float gSpikeFrame;
 void MoveObjects();
 tObject *NewObject(tObject *,SInt16);
 void RemoveObject(tObject *);
+void FlushRemovedObjects(void);
 void InsertObjectGroup(tObjectGroupReference);
 void KillObject(tObject *);
 int CalcBackCollision(t2DPoint);

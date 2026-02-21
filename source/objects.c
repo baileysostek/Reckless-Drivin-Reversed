@@ -19,6 +19,16 @@
 #define kExpMass			250
 #define kGravity			50.0
 
+/* Deferred-free list: RemoveObject unlinks objects from the active list but
+ * defers DisposePtr until the end of MoveObjects. This prevents use-after-free
+ * when HandleCollision (called from ObjectPhysics) kills an object that was
+ * saved as the 'next' pointer in MoveObjects' linked list iteration.
+ * Classic Mac OS DisposePtr didn't truly invalidate memory, so the original
+ * code worked by accident. Modern free() makes the memory inaccessible. */
+#define MAX_PENDING_FREE 256
+static Ptr gPendingFree[MAX_PENDING_FREE];
+static int gPendingFreeCount = 0;
+
 void ObjectPhysics(tObject *);
 
 #ifndef _MSC_VER
@@ -255,6 +265,7 @@ void RemoveObject(tObject *theObj)
 	{
 		theObj->frame=0;
 		theObj->type=(tObjectTypePtr)GetUnsortedPackEntry(kPackObTy,2000,0);
+		if(!theObj->type) theObj->type = GetDummyType(); /* Fallback if type 2000 missing */
 	}
 	else
 	{
@@ -264,7 +275,15 @@ void RemoveObject(tObject *theObj)
 			gLastVisObj=(tObject*)gLastVisObj->next;
 		((tObject*)theObj->prev)->next=theObj->next;
 		((tObject*)theObj->next)->prev=theObj->prev;
-		DisposePtr((Ptr)theObj);
+		/* Defer free: the object's own next/prev pointers still point to their
+		 * old neighbors, so any saved 'next' pointer in MoveObjects can still
+		 * follow the chain to the correct successor. Mark type=NULL so the
+		 * iteration loop skips this dead object. */
+		theObj->type = NULL;
+		if(gPendingFreeCount < MAX_PENDING_FREE)
+			gPendingFree[gPendingFreeCount++] = (Ptr)theObj;
+		else
+			DisposePtr((Ptr)theObj);
 	}
 }
 
@@ -286,7 +305,9 @@ int CalcBackCollision(t2DPoint pos)
 void KillObject(tObject *theObj)
 {
 	tObjectTypePtr objType=theObj->type;
-	int sinkEnable=CalcBackCollision(theObj->pos)==2&&(*objType).flags2&kObjectSink;
+	int sinkEnable;
+	if(!objType) return; /* Already dead/removed — don't dereference NULL type */
+	sinkEnable=CalcBackCollision(theObj->pos)==2&&(*objType).flags2&kObjectSink;
 	if(theObj==gPlayerObj)
 	{
 		if(!gFinishDelay&&!(gPlayerDeathDelay!=0)&&gPlayerLives)
@@ -327,7 +348,7 @@ void KillObject(tObject *theObj)
 		NewTextEffect(&fx);
 	}
 	SpriteUnused(theObj->frame);
-	if((*objType).flags&kObjectDefaultDeath)	
+	if((*objType).flags&kObjectDefaultDeath)
 		Explosion(theObj->pos,theObj->velo,sinkEnable?gRoadInfo->deathOffs:0,objType->mass,true);
 	if((*objType).deathObj==-1)
 	{
@@ -341,7 +362,7 @@ void KillObject(tObject *theObj)
 		theObj->type = newType;
 	}
 	theObj->layer=(*theObj->type).flags2>>5&3;
-	objType=theObj->type;		
+	objType=theObj->type;
 	if((*objType).flags&kObjectRandomFrameFlag)
 		theObj->frame=(*objType).frame+RanInt(0,(*theObj->type).numFrames);
 	else
@@ -433,6 +454,7 @@ void FireWeapon(tObject *shooter,int weaponID)
 
 static inline void MoveObject(tObject *theObj)
 {
+	if(!theObj->type) return;
 	if(*(double*)(&theObj->velo))
 	{
 		theObj->pos=VEC2D_Sum(theObj->pos,VEC2D_Scale(theObj->velo,kScale*kFrameDuration));
@@ -484,6 +506,7 @@ static inline void MoveObject(tObject *theObj)
 static inline void AnimateObject(tObject *theObj)
 {
 	tObjectTypePtr objType=theObj->type;
+	if(!objType) return;
 	if(!(*objType).frameDuration)
 		return;
 	if(objType->flags&kObjectCop&&!(objType->flags&kObjectHeliFlag)&&!(objType->flags2&kObjectEngineSound))
@@ -524,6 +547,14 @@ static inline void AnimateObject(tObject *theObj)
 			theObj->frame=(*objType).frame;
 }
 
+void FlushRemovedObjects(void)
+{
+	int i;
+	for(i = 0; i < gPendingFreeCount; i++)
+		DisposePtr(gPendingFree[i]);
+	gPendingFreeCount = 0;
+}
+
 void MoveObjects()
 {
 	tObject	*theObj=(tObject*)(gFirstObj->next);
@@ -535,6 +566,12 @@ void MoveObjects()
 	while(theObj!=gFirstObj)
 	{
 		tObject *next=(tObject*)theObj->next;
+		/* Skip dead objects (removed but deferred-free, reachable via
+		 * stale next pointers saved before ObjectPhysics/HandleCollision) */
+		if(theObj->type == NULL){
+			theObj=next;
+			continue;
+		}
 		if((theObj==gPlayerObj)||!(gFrameCount%kLowCalcRatio)){
 			if(gFrameCount%(2*kLowCalcRatio))
 				ObjectControl(theObj,input);
@@ -551,4 +588,5 @@ void MoveObjects()
 		objCount++;
 	}
 	SortObjects();
+	FlushRemovedObjects();
 }

@@ -30,7 +30,7 @@ float GetCloseCar(t2DPoint pos)
 	int dist=0x7fffffff;
 	while(theObj!=gLastVisObj)
 	{
-		if((*theObj->type).flags&kObjectBackCollFlag+kObjectBounce||(*theObj->type).flags2&kObjectRoadKill)
+		if(theObj->type&&((*theObj->type).flags&kObjectBackCollFlag+kObjectBounce||(*theObj->type).flags2&kObjectRoadKill))
 		{
 			float xdist=theObj->pos.x-pos.x;
 			float ydist=theObj->pos.y-pos.y;
@@ -49,9 +49,20 @@ float GetCloseCar(t2DPoint pos)
 void CheckTarget(tObject *theObj)
 {
 	tTrackInfo *track=(theObj->control==kObjectDriveUp||theObj->control==kObjectCopControl)?gTrackUp:gTrackDown;
-	t2DPoint targDist=VEC2D_Difference(P2D(track->track[theObj->target].x,track->track[theObj->target].y),theObj->pos);
-	float sqTargDist=targDist.x*targDist.x+targDist.y*targDist.y;
-	int passed=(theObj->control==kObjectDriveUp||theObj->control==kObjectCopControl)?track->track[theObj->target].y<theObj->pos.y:track->track[theObj->target].y>theObj->pos.y;
+	t2DPoint targDist;
+	float sqTargDist;
+	int passed;
+	/* Bounds-check target against track length. After KillObject sets
+	 * control=kObjectNoInput, the target index (valid for gTrackUp) may be
+	 * out of range for gTrackDown, causing an out-of-bounds access. */
+	if(theObj->control==kObjectNoInput) return;
+	if(theObj->target < 0 || (UInt32)theObj->target >= track->num) {
+		theObj->target = 0;
+		return;
+	}
+	targDist=VEC2D_Difference(P2D(track->track[theObj->target].x,track->track[theObj->target].y),theObj->pos);
+	sqTargDist=targDist.x*targDist.x+targDist.y*targDist.y;
+	passed=(theObj->control==kObjectDriveUp||theObj->control==kObjectCopControl)?track->track[theObj->target].y<theObj->pos.y:track->track[theObj->target].y>theObj->pos.y;
 	if(sqTargDist<kTargetSwitchDist*kTargetSwitchDist||passed)
 		theObj->target=(theObj->target+1)%track->num;
 }
@@ -128,7 +139,7 @@ void CallFriend(tObject *copObj)
 	int dist=0;
 	while(theObj!=gFirstObj)
 	{
-		if((*theObj->type).flags&kObjectCop)
+		if(theObj->type&&(*theObj->type).flags&kObjectCop)
 		{
 			float xdist=theObj->pos.x-copObj->pos.x;
 			float ydist=theObj->pos.y-copObj->pos.y;

@@ -462,7 +462,7 @@ void HandleCollision(tObject *posObj)
 			float ydist=theObj->pos.y-posObj->pos.y;
 			float sqdist=xdist*xdist+ydist*ydist;
 			if(sqdist<kMaxCollDist*kMaxCollDist)
-				if(TestCollision(posObj,theObj,sqdist))
+				if(theObj->type && posObj->type && TestCollision(posObj,theObj,sqdist))
 				{
 					/* Cache all flags we need BEFORE any KillObject calls,
 					 * since KillObject may free theObj (use-after-free). */
