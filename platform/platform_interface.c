@@ -9,6 +9,7 @@
 
 #include "resources.h"
 #include "mac_compat.h"
+#include "editor.h"
 #include "endian_compat.h"
 #include "quickdraw.h"
 #include "lzrw3a.h"
@@ -551,6 +552,16 @@ void Eventloop(void)
                         break;
                     case SDLK_r:
                         btn = kRegisterButton;
+                        break;
+                    case SDLK_e:
+                        /* Open level editor (level 1) */
+                        EditorEnter(1);
+                        /* Restore menu after editor closes */
+                        if (gMainScreenBuf) {
+                            BlitCentered(gBaseAddr, gMainScreenBuf);
+                            FadeScreen(0);
+                            Blit2Screen();
+                        }
                         break;
                 }
 

@@ -11,6 +11,8 @@
 #include "packs.h"
 #include "screen.h"
 #include "sprites.h"
+#include "objects.h"
+#include "gameinitexit.h"
 
 /* From platform_screen.c */
 extern void ResizeFramebuffer(int newWidth);
@@ -25,6 +27,46 @@ extern void ScreenUpdate(WindowPtr win);
 
 tPrefs gPrefs;
 extern int gOSX;
+
+/* ------------------------------------------------------------------ */
+/* Car selection                                                        */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+    SInt16 typeID;
+    char   name[16];
+} tCarChoice;
+
+#define kMaxCarChoices 32
+static tCarChoice sCarChoices[kMaxCarChoices];
+static int sNumCarChoices = 0;
+static int sCarIdx = 0;  /* index of currently selected car */
+
+static void CollectCarCallback(Ptr data, int size, int id, void *ctx)
+{
+    tObjectTypePtr ty = (tObjectTypePtr)data;
+    (void)ctx;
+    if (size < (int)sizeof(tObjectType)) return;
+    /* Must have wheels and engine power */
+    if (!(ty->flags & kObjectWheelFlag)) return;
+    if (ty->maxEngineForce <= 0.0f) return;
+    /* Exclude helicopters and boats */
+    if (ty->flags & kObjectHeliFlag) return;
+    if (ty->flags2 & kObjectFloating) return;
+    if (sNumCarChoices >= kMaxCarChoices) return;
+    sCarChoices[sNumCarChoices].typeID = (SInt16)id;
+    snprintf(sCarChoices[sNumCarChoices].name, 16, "Car %d", sNumCarChoices + 1);
+    sNumCarChoices++;
+}
+
+void BuildCarChoiceList(void)
+{
+    sNumCarChoices = 0;
+    ForEachPackEntry(kPackObTy, CollectCarCallback, NULL);
+    fprintf(stderr, "[BuildCarChoiceList] found %d driveable cars\n", sNumCarChoices);
+    sCarIdx = 0;
+    gSelectedCarID = (sNumCarChoices > 0) ? sCarChoices[0].typeID : kNormalPlayerCarID;
+}
 
 #ifdef _WIN32
 #include <shlobj.h>
@@ -146,7 +188,8 @@ void ReInitGraphics(void)
 /* Vertical position of each checkbox row */
 #define kPrefsRow1Y       180
 #define kPrefsRow2Y       220
-#define kPrefsHintY       300
+#define kPrefsRow3Y       260
+#define kPrefsHintY       320
 
 /* Horizontal offset from center for checkbox text */
 #define kPrefsCheckX      180   /* in 640-space, offset from left */
@@ -156,6 +199,12 @@ static void DrawPrefsScreen(void)
     int xOff = (gXSize - 640) / 2;
     const char *fs_label = gPrefs.fullscreen ? "[X] Fullscreen" : "[ ] Fullscreen";
     const char *ws_label = gPrefs.widescreen ? "[X] Widescreen" : "[ ] Widescreen";
+    char car_label[48];
+
+    if (sNumCarChoices > 0)
+        snprintf(car_label, sizeof(car_label), "Car: < %s >", sCarChoices[sCarIdx].name);
+    else
+        snprintf(car_label, sizeof(car_label), "Car: [Default]");
 
     /* Clear framebuffer to black */
     memset(gBaseAddr, 0, gXSize * gYSize * 2);
@@ -163,12 +212,14 @@ static void DrawPrefsScreen(void)
     /* Title */
     DrawStringCentered5x7(kPrefsTitleY, kPrefsTitle, kPrefsTitleScale, kColorYellowBE);
 
-    /* Checkbox rows */
+    /* Rows */
     DrawString5x7(kPrefsCheckX + xOff, kPrefsRow1Y, fs_label, kPrefsCheckScale, kColorWhiteBE);
-    DrawString5x7(kPrefsCheckX + xOff, kPrefsRow2Y, ws_label, kPrefsCheckScale, kColorCyanBE);
+    DrawString5x7(kPrefsCheckX + xOff, kPrefsRow2Y, ws_label, kPrefsCheckScale, kColorRedBE);
+    DrawString5x7(kPrefsCheckX + xOff, kPrefsRow3Y, car_label, kPrefsCheckScale, kColorGreenBE);
 
     /* Hint */
-    DrawStringCentered5x7(kPrefsHintY, "Press ESC to return", kPrefsCheckScale, kColorGrayBE);
+    DrawStringCentered5x7(kPrefsHintY, "Left/Right arrows to change car  ESC to return",
+                          kPrefsCheckScale, kColorGrayBE);
 
     Blit2Screen();
 }
@@ -187,6 +238,14 @@ void Preferences(void)
                     if (event.key.keysym.sym == SDLK_ESCAPE ||
                         event.key.keysym.sym == SDLK_RETURN) {
                         done = 1;
+                    } else if (event.key.keysym.sym == SDLK_LEFT && sNumCarChoices > 0) {
+                        sCarIdx = (sCarIdx > 0) ? sCarIdx - 1 : sNumCarChoices - 1;
+                        gSelectedCarID = sCarChoices[sCarIdx].typeID;
+                        DrawPrefsScreen();
+                    } else if (event.key.keysym.sym == SDLK_RIGHT && sNumCarChoices > 0) {
+                        sCarIdx = (sCarIdx + 1) % sNumCarChoices;
+                        gSelectedCarID = sCarChoices[sCarIdx].typeID;
+                        DrawPrefsScreen();
                     }
                     break;
 
@@ -217,6 +276,17 @@ void Preferences(void)
                             } else {
                                 ResizeFramebuffer(640);
                             }
+                            DrawPrefsScreen();
+                        }
+                        /* Check car row — left half = prev, right half = next */
+                        else if (fbY >= kPrefsRow3Y && fbY < kPrefsRow3Y + kPrefsCheckH + 4
+                                 && sNumCarChoices > 0) {
+                            int rowMid = kPrefsCheckX + xOff + 20 * kPrefsCheckCharW / 2;
+                            if (fbX < rowMid)
+                                sCarIdx = (sCarIdx > 0) ? sCarIdx - 1 : sNumCarChoices - 1;
+                            else
+                                sCarIdx = (sCarIdx + 1) % sNumCarChoices;
+                            gSelectedCarID = sCarChoices[sCarIdx].typeID;
                             DrawPrefsScreen();
                         }
                     }

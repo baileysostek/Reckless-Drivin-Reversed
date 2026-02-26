@@ -143,6 +143,7 @@ void Init()
 	fprintf(stderr, "[Init] LoadPack(kPackObTy)...\n");
 	LoadPack(kPackObTy);
 	SwapPackObTy();
+	BuildCarChoiceList();
 	fprintf(stderr, "[Init] LoadPack(kPackOgrp)...\n");
 	LoadPack(kPackOgrp);
 	SwapPackOgrp();

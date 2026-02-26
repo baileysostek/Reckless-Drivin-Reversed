@@ -41,6 +41,8 @@ float gGameTime;
 float gXDriftPos,gYDriftPos,gXFrontDriftPos,gYFrontDriftPos,gZoomVelo;
 int gGameOn;
 int gPlayerCarID;
+int gSelectedCarID = kNormalPlayerCarID;
+static tRoad sRoadOverride = NULL;  /* malloc'd road data from editor save */  /* session car choice; default = player car */
 float gPlayerSlide[4]={0,0,0,0};
 float gSpikeFrame;
 int gLCheat;
@@ -98,6 +100,81 @@ static void SwapTrackInfo(tTrackInfo *ti)
 		ti->track[i].y = SwapS32(ti->track[i].y);
 		ti->track[i].velo = SwapFloat(ti->track[i].velo);
 	}
+}
+
+static void SwapObjectPos(tObjectPos *op);  /* defined below, used here */
+
+/* -----------------------------------------------------------------------
+ * EditorLoadRoadData — load level data for the editor without starting
+ * a game. Uses existing static Swap* helpers. Returns a malloc'd copy
+ * of the road segments; caller must free(). Also sets gLevelData,
+ * gRoadInfo, gTrackUp, gTrackDown for the caller to copy.
+ * ----------------------------------------------------------------------- */
+tRoad EditorLoadRoadData(int levelID, UInt32 *outLen,
+                         tObjectPos **outObjs, UInt32 *outNumObjs)
+{
+	Ptr dataPos;
+	UInt32 numObjs;
+	tObjectPos *objs;
+	tRoad result;
+	UInt32 s;
+
+	if (outObjs)    *outObjs    = NULL;
+	if (outNumObjs) *outNumObjs = 0;
+
+	LoadPack(kPackLevel1 + levelID);
+	gLevelData = (tLevelData*)GetSortedPackEntry(kPackLevel1 + levelID, 1, nil);
+	if (!gLevelData) { *outLen = 0; return NULL; }
+	SwapLevelData(gLevelData);
+
+	gRoadInfo = (tRoadInfo*)GetSortedPackEntry(kPackRoad, gLevelData->roadInfo, nil);
+
+	gTrackUp = (tTrackInfo*)((Ptr)gLevelData + sizeof(tLevelData));
+	SwapTrackInfo(gTrackUp);
+	gTrackDown = (tTrackInfo*)((Ptr)gTrackUp + sizeof(UInt32) + gTrackUp->num * sizeof(tTrackInfoSeg));
+	SwapTrackInfo(gTrackDown);
+
+	/* Extract and byte-swap object positions, returning a malloc'd copy */
+	dataPos = (Ptr)gTrackDown + sizeof(UInt32) + gTrackDown->num * sizeof(tTrackInfoSeg);
+	numObjs = SwapU32(*(UInt32*)dataPos);
+	*(UInt32*)dataPos = numObjs;
+	objs = (tObjectPos*)(dataPos + sizeof(UInt32));
+
+	if (outObjs && outNumObjs && numObjs > 0) {
+		UInt32 oi;
+		tObjectPos *objCopy = (tObjectPos*)malloc(numObjs * sizeof(tObjectPos));
+		if (objCopy) {
+			memcpy(objCopy, objs, numObjs * sizeof(tObjectPos));
+			for (oi = 0; oi < numObjs; oi++)
+				SwapObjectPos(&objCopy[oi]);
+			*outObjs = objCopy;
+		}
+		*outNumObjs = numObjs;
+	}
+
+	gRoadLenght = (UInt32*)(objs + numObjs);
+	*gRoadLenght = SwapU32(*gRoadLenght);
+	gRoadData = (tRoad)((Ptr)gRoadLenght + sizeof(UInt32));
+
+	/* Byte-swap road segments in-place */
+	for (s = 0; s < *gRoadLenght; s++) {
+		gRoadData[s][0] = SwapS16(gRoadData[s][0]);
+		gRoadData[s][1] = SwapS16(gRoadData[s][1]);
+		gRoadData[s][2] = SwapS16(gRoadData[s][2]);
+		gRoadData[s][3] = SwapS16(gRoadData[s][3]);
+	}
+
+	/* Return a malloc'd copy for the editor to own */
+	*outLen = *gRoadLenght;
+	result = (tRoad)malloc(*outLen * sizeof(tRoadSeg));
+	if (result)
+		memcpy(result, gRoadData, *outLen * sizeof(tRoadSeg));
+	return result;
+}
+
+void EditorUnloadLevelPack(int levelID)
+{
+    UnloadPack(kPackLevel1 + levelID);
 }
 
 static void SwapMarkSegs(tMarkSeg *marks, int count)
@@ -205,7 +282,95 @@ int LoadLevel()
 	SwapTrackInfo(gTrackUp);
 	gTrackDown=(tTrackInfo*)((Ptr)gTrackUp+sizeof(UInt32)+gTrackUp->num*sizeof(tTrackInfoSeg));
 	SwapTrackInfo(gTrackDown);
-	gRoadLenght=(UInt32*)LoadObjs((Ptr)gTrackDown+sizeof(UInt32)+gTrackDown->num*sizeof(tTrackInfoSeg));
+
+	/* ---- Read editor save file (before LoadObjs so we can override objects) ---- */
+	{
+		char opath[256];
+		FILE *of;
+		tObjectPos *editorObjs = NULL;
+		UInt32 editorNumObjs = 0;
+		int editorHasObjects = 0;
+
+		if (sRoadOverride) { free(sRoadOverride); sRoadOverride = NULL; }
+		snprintf(opath, sizeof(opath), "saves/level_%d_editor.bin", gLevelID);
+		of = fopen(opath, "rb");
+		if (of) {
+			UInt32 magic = 0, version = 0;
+			fread(&magic, 4, 1, of);
+			fread(&version, 4, 1, of);
+			if (magic == 0x52444C56u && version >= 1) {
+				tLevelData savedMeta;
+				UInt32 nSegs = 0;
+				int gi;
+				/* 1. Metadata */
+				if (fread(&savedMeta, sizeof(tLevelData), 1, of) == 1) {
+					gLevelData->time      = savedMeta.time;
+					gLevelData->xStartPos = savedMeta.xStartPos;
+					for (gi = 0; gi < 10; gi++)
+						gLevelData->objGrps[gi] = savedMeta.objGrps[gi];
+				}
+				/* 2. Road segments (stored for later apply) */
+				if (fread(&nSegs, 4, 1, of) == 1 && nSegs > 0 && nSegs <= 200000) {
+					sRoadOverride = (tRoad)malloc(nSegs * sizeof(tRoadSeg));
+					if (sRoadOverride) {
+						if (fread(sRoadOverride, sizeof(tRoadSeg), nSegs, of) != nSegs) {
+							free(sRoadOverride); sRoadOverride = NULL;
+						}
+					}
+				}
+				/* 3. Skip track up */
+				{ UInt32 n = 0; if (fread(&n, 4, 1, of) == 1) fseek(of, (long)(n * sizeof(tTrackInfoSeg)), SEEK_CUR); }
+				/* 4. Skip track down */
+				{ UInt32 n = 0; if (fread(&n, 4, 1, of) == 1) fseek(of, (long)(n * sizeof(tTrackInfoSeg)), SEEK_CUR); }
+				/* 5. Object overrides (version 2+) */
+				if (version >= 2) {
+					UInt32 nObjs = 0;
+					if (fread(&nObjs, 4, 1, of) == 1 && nObjs > 0 && nObjs < 10000) {
+						editorObjs = (tObjectPos*)malloc(nObjs * sizeof(tObjectPos));
+						if (editorObjs) {
+							if (fread(editorObjs, sizeof(tObjectPos), nObjs, of) == nObjs) {
+								editorNumObjs = nObjs;
+								editorHasObjects = 1;
+							} else {
+								free(editorObjs); editorObjs = NULL;
+							}
+						}
+					}
+				}
+				fprintf(stderr, "[LoadLevel] Editor save v%u: road=%s objects=%d\n",
+				        version, sRoadOverride ? "yes" : "no",
+				        editorHasObjects ? (int)editorNumObjs : 0);
+			}
+			fclose(of);
+		}
+
+		/* Load objects: from editor save (v2) or from pack */
+		{
+			Ptr objsDataPos = (Ptr)gTrackDown + sizeof(UInt32) + gTrackDown->num * sizeof(tTrackInfoSeg);
+			if (editorHasObjects) {
+				/* Advance pointer past pack objects without creating them */
+				UInt32 nPackObjs = SwapU32(*(UInt32*)objsDataPos);
+				*(UInt32*)objsDataPos = nPackObjs;
+				gRoadLenght = (UInt32*)((tObjectPos*)(objsDataPos + sizeof(UInt32)) + nPackObjs);
+				/* Create editor objects */
+				{
+					UInt32 oi;
+					for (oi = 0; oi < editorNumObjs; oi++) {
+						tObject *theObj = NewObject(gFirstObj, editorObjs[oi].typeRes);
+						if (theObj) {
+							theObj->dir   = editorObjs[oi].dir;
+							theObj->pos.x = editorObjs[oi].x;
+							theObj->pos.y = editorObjs[oi].y;
+						}
+					}
+				}
+				free(editorObjs); editorObjs = NULL;
+			} else {
+				gRoadLenght = (UInt32*)LoadObjs(objsDataPos);
+			}
+		}
+	}
+
 	*gRoadLenght = SwapU32(*gRoadLenght);
 	gRoadData=(tRoad)((Ptr)gRoadLenght+sizeof(UInt32));
 	fprintf(stderr, "[LoadLevel] Road: %u segments, water=%d\n", *gRoadLenght, gRoadInfo->water);
@@ -220,6 +385,12 @@ int LoadLevel()
 			gRoadData[s][2] = SwapS16(gRoadData[s][2]);
 			gRoadData[s][3] = SwapS16(gRoadData[s][3]);
 		}
+	}
+
+	/* Apply road override from editor save (replaces pack road data) */
+	if (sRoadOverride) {
+		gRoadData = sRoadOverride;
+		fprintf(stderr, "[LoadLevel] Applied editor road override\n");
 	}
 
 	fprintf(stderr, "[LoadLevel] Inserting object groups...\n");
@@ -317,8 +488,8 @@ void StartGame(int lcheat)
 	gPlayerDeathDelay=0;
 	gFinishDelay=0;
 	gPlayerScore=0;
-	gLevelID=0; // Starting Level
-	gPlayerCarID=kNormalPlayerCarID;
+	gLevelID=1; // Starting Level
+	gPlayerCarID=gSelectedCarID;
 	gNumMissiles=0;
 	gNumMines=0;
 	gGameOn=true;

@@ -4,7 +4,7 @@
 #include "input.h"
 
 #define kNumHighScoreEntrys	10
-#define kPrefsVersion 7
+#define kPrefsVersion 8
 
 typedef struct{
 	char name[16];
@@ -29,8 +29,9 @@ typedef struct{
 }tPrefs;
 
 extern tPrefs gPrefs;
-void Preferences();	
+void Preferences();
 void LoadPrefs();
 void WritePrefs(int reset);
+void BuildCarChoiceList(void);
 
 #endif
